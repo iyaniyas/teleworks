@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Console;
+
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use App\Console\Commands\ScrapeJobStreetSource;
+
+class Kernel extends ConsoleKernel
+{
+
+    protected $commands = [
+    ScrapeJobStreetSource::class,
+    ];
+	
+    /**
+     * Define the application's command schedule.
+     */
+    protected function schedule(Schedule $schedule): void
+    {
+        $schedule->command('jobs:expire')->hourly();
+    }
+
+    {
+    // jalan tiap 6 jam pada menit 5 (lebih aman dari tabrakan jam)
+    $schedule->command('adzuna:import --country=us --what="remote OR work from home" --age=7 --pages=5')
+        ->cron('5 */6 * * *')
+        ->withoutOverlapping()
+        ->onOneServer()
+        ->runInBackground();
+    }
+
+    /**
+     * Register the commands for the application.
+     */
+    protected function commands(): void
+    {
+        $this->load(__DIR__.'/Commands');
+
+        require base_path('routes/console.php');
+    }
+}
