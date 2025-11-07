@@ -1,9 +1,17 @@
-<!doctype html>
+<!doctype html> 
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>@yield('title', 'Teleworks — Job Remote WFH')</title>
+
+  @php
+    $timestamp = now()->format('d M Y, H:i');
+    $baseTitle = trim($__env->yieldContent('title')) ?: 'Teleworks — Job Remote WFH';
+    $metaDesc = trim($__env->yieldContent('meta_description')) ?: 'Temukan lowongan kerja remote, WFH, dan freelance terbaru di Teleworks.';
+  @endphp
+
+  <title>{{ $baseTitle }} — {{ $timestamp }}</title>
+  <meta name="description" content="{{ $metaDesc }} (Diperbarui {{ $timestamp }})" />
   <meta name="robots" content="index, follow" />
 
   {{-- Preload font Inter (pilih salah satu sumber font) --}}
@@ -17,7 +25,6 @@
   @vite('resources/js/app.js')
 
   @stack('head')
-  <meta name="robots" content="noindex, nofollow">
 </head>
 <body class="bg-[#0b1220] text-[#e6eef8]">
   <div class="container py-4">
