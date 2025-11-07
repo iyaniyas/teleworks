@@ -44,7 +44,7 @@ class JobController extends Controller
         // Ambil job berdasarkan ID, 404 jika tidak ada
         $job = Job::findOrFail($id);
 
-        // Fallback tanggal agar tidak kosong
+        // --- fallback tanggal agar tidak kosong ---
         $datePosted = $job->date_posted
             ? Carbon::parse($job->date_posted)->toDateString()
             : optional($job->created_at)->toDateString();
@@ -53,7 +53,95 @@ class JobController extends Controller
             ? Carbon::parse($job->valid_through)->toDateString()
             : Carbon::parse($datePosted ?? now())->addDays(45)->toDateString();
 
-        // Siapkan schema JobPosting (WFH-aware)
+        // --- APPLY URL fallback: cek beberapa kolom + raw JSON ---
+        $applyUrl = $job->apply_url
+            ?? $job->final_url
+            ?? $job->url
+            ?? $job->source_url
+            ?? $job->redirect_url
+            ?? null;
+
+        if (empty($applyUrl) && !empty($job->raw)) {
+            $raw = is_array($job->raw) ? $job->raw : json_decode($job->raw, true);
+            if (is_array($raw)) {
+                $applyUrl = $raw['apply_url'] ?? $raw['final_url'] ?? $raw['url'] ?? $raw['source_url'] ?? $raw['redirect_url'] ?? null;
+                if (empty($applyUrl) && !empty($raw['apply_urls']) && is_array($raw['apply_urls'])) {
+                    $applyUrl = $raw['apply_urls'][0] ?? null;
+                }
+            }
+        }
+
+        // hiringOrganization
+        $hiringOrg = $job->hiring_organization ?: ($job->company ?: null);
+
+        // jobLocation: prefer lokasi yang ada di raw.locations jika tersedia
+        $jobLocation = null;
+        if (!empty($job->raw)) {
+            $raw = is_array($job->raw) ? $job->raw : json_decode($job->raw, true);
+            if (is_array($raw) && !empty($raw['locations']) && is_array($raw['locations'])) {
+                $loc = $raw['locations'][0];
+
+                // Build display string safely without ambiguous ternaries
+                $parts = [];
+
+                if (!empty($loc['display_name'])) {
+                    $jobLocation = $loc['display_name'];
+                } else {
+                    if (!empty($loc['name'])) {
+                        $parts[] = $loc['name'];
+                    }
+                    if (!empty($loc['admin1_name'])) {
+                        $parts[] = $loc['admin1_name'];
+                    }
+                    if (!empty($loc['country_name'])) {
+                        $parts[] = $loc['country_name'];
+                    }
+                    if (!empty($parts)) {
+                        $jobLocation = trim(implode(', ', $parts));
+                    }
+                }
+            }
+        }
+
+        if (empty($jobLocation)) {
+            $jobLocation = $job->job_location ?: $job->location ?: null;
+        }
+
+        // applicantLocationRequirements
+        $applicantLocationRequirements = [];
+        if (!empty($job->applicant_location_requirements)) {
+            if (is_array($job->applicant_location_requirements)) {
+                $applicantLocationRequirements = $job->applicant_location_requirements;
+            } else {
+                // Pastikan json_decode dievaluasi dan fallback ke array kosong
+                $decoded = json_decode($job->applicant_location_requirements, true);
+                $applicantLocationRequirements = $decoded ?: [];
+            }
+        }
+
+        // baseSalary
+        $baseSalary = null;
+        if ($job->base_salary_min || $job->base_salary_max) {
+            $baseSalary = [
+                '@type' => 'MonetaryAmount',
+                'currency' => $job->base_salary_currency ?: 'IDR',
+                'value' => array_filter([
+                    '@type' => 'QuantitativeValue',
+                    'minValue' => $job->base_salary_min,
+                    'maxValue' => $job->base_salary_max,
+                    'unitText' => $job->base_salary_unit ?: 'MONTH',
+                ], fn($v) => !is_null($v) && $v !== ''),
+            ];
+        }
+
+        $directApply = (bool) $job->direct_apply;
+        $employmentType = $job->employment_type ?? null;
+        $identifier = ($job->identifier_name || $job->identifier_value) ? [
+            '@type' => 'PropertyValue',
+            'name'  => $job->identifier_name,
+            'value' => $job->identifier_value ?: ($job->source ? $job->source.'-'.$job->source_id : null),
+        ] : null;
+
         $schema = [
             '@context' => 'https://schema.org',
             '@type'    => 'JobPosting',
@@ -61,39 +149,31 @@ class JobController extends Controller
             'description' => strip_tags((string) ($job->description ?? '')),
             'datePosted'  => $datePosted,
             'validThrough'=> $validThrough,
-            'employmentType' => $job->employment_type ?: null,
+            'employmentType' => $employmentType ?: null,
             'hiringOrganization' => [
                 '@type' => 'Organization',
-                'name'  => $job->hiring_organization ?: ($job->company ?: ''),
+                'name'  => $hiringOrg ?: '',
             ],
             'jobLocationType' => $job->is_remote ? 'TELECOMMUTE' : 'ONSITE',
-            'jobLocation' => $job->is_remote ? null : [
+            // jobLocation: buat null jika remote
+            'jobLocation' => $job->is_remote ? null : ($jobLocation ? [
                 '@type' => 'Place',
                 'address' => [
                     '@type' => 'PostalAddress',
-                    'addressLocality' => $job->job_location ?: ($job->location ?: ''),
+                    'addressLocality' => $jobLocation,
                     'addressCountry'  => 'ID',
                 ],
-            ],
-            'baseSalary' => ($job->base_salary_min || $job->base_salary_max) ? [
-                '@type'    => 'MonetaryAmount',
-                'currency' => $job->base_salary_currency ?: 'IDR',
-                'value' => array_filter([
-                    '@type'    => 'QuantitativeValue',
-                    'minValue' => $job->base_salary_min,
-                    'maxValue' => $job->base_salary_max,
-                    'unitText' => $job->base_salary_unit ?: 'MONTH',
-                ]),
-            ] : null,
-            'directApply' => (bool) $job->direct_apply,
-            'identifier' => ($job->identifier_name || $job->identifier_value) ? [
-                '@type' => 'PropertyValue',
-                'name'  => $job->identifier_name,
-                'value' => $job->identifier_value,
-            ] : null,
+            ] : null),
+            'baseSalary' => $baseSalary,
+            'directApply' => $directApply,
+            'identifier'  => $identifier,
+            // tambahkan URL di schema jika tersedia (berguna untuk validasi dan indexing)
+            'url' => $applyUrl ?: null,
+            // applicantLocationRequirements (jika ada)
+            'applicantLocationRequirements' => $applicantLocationRequirements ?: null,
         ];
 
-        // Bersihkan key null agar schema rapi
+        // Bersihkan key null agar schema rapi (rekursif sederhana)
         $schema = array_filter($schema, fn($v) => !is_null($v));
 
         return view('jobs.show', [

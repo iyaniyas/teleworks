@@ -61,6 +61,17 @@ class TheirStackClient
             $payload['company_name_or'] = [$company];
         }
 
+        // --- PENTING: pastikan kita meminta jobs yang punya final_url (apply link) ---
+        // Jika caller sudah mengirim property_exists_or, respekt; jika belum, tambahkan final_url
+        if (!isset($filters['property_exists_or'])) {
+            $payload['property_exists_or'] = ['final_url'];
+        } else {
+            // Jika caller mengirim, merge agar final_url selalu ada
+            $payload['property_exists_or'] = is_array($filters['property_exists_or'])
+                ? (array_unique(array_merge($filters['property_exists_or'], ['final_url'])))
+                : ['final_url'];
+        }
+
         $resp = Http::withHeaders([
                 'Authorization' => 'Bearer '.$this->apiKey,
                 'Accept'        => 'application/json',
