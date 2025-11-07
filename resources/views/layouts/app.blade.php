@@ -6,36 +6,20 @@
   <title>@yield('title', 'Teleworks — Job Remote WFH')</title>
   <meta name="robots" content="index, follow" />
 
-  {{-- Bootstrap lokal --}}
-  <link href="{{ asset('vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+  {{-- Preload font Inter (pilih salah satu sumber font) --}}
+  {{-- Opsi A: font ada di public/fonts (tidak di-hash) --}}
+  <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/Inter-Variable.woff2') }}" crossorigin>
 
-  {{-- (Opsional) Font lokal kustom: taruh file woff2 di public/fonts/ --}}
-  {{-- Hapus blok @font-face ini kalau tidak punya file font lokal --}}
-  <style>
-    /* Contoh: pakai Inter lokal jika ada */
-    @font-face {
-      font-family: "Inter";
-      src: url("{{ asset('fonts/Inter-Variable.woff2') }}") format("woff2");
-      font-weight: 100 900;
-      font-style: normal;
-      font-display: swap;
-    }
+  {{-- Opsi B: kalau font kamu taruh di resources/fonts dan diproses Vite, pakai ini, lalu HAPUS preload Opsi A di atas --}}
+  {{-- <link rel="preload" as="font" type="font/woff2" href="{{ Vite::asset('resources/fonts/Inter-Variable.woff2') }}" crossorigin> --}}
 
-    body {
-      /* Urutan: pakai Inter lokal jika ada, lalu fallback ke sistem (semua lokal) */
-      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      background: #0b1220; color: #e6eef8;
-    }
-    .card { background: #0f1724; border: 1px solid rgba(255,255,255,0.04); }
-    .muted { color: rgba(230,238,248,0.6); }
-    .result-title { color: #e6eef8; text-decoration: none; }
-    .small-muted { color: rgba(230,238,248,0.55); font-size: .85rem; }
-  </style>
+  {{-- Vite entry: app.js sudah import app.css + bootstrap + alpine --}}
+  @vite('resources/js/app.js')
 
   @stack('head')
-<meta name="robots" content="noindex, nofollow">
+  <meta name="robots" content="noindex, nofollow">
 </head>
-<body>
+<body class="bg-[#0b1220] text-[#e6eef8]">
   <div class="container py-4">
     <header class="d-flex justify-content-between align-items-center mb-4">
       <a href="{{ url('/') }}" class="text-decoration-none text-light h4 mb-0">Teleworks</a>
@@ -54,8 +38,6 @@
     </footer>
   </div>
 
-  {{-- Bootstrap bundle lokal (termasuk Popper) --}}
-  <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
   @stack('scripts')
 </body>
 </html>

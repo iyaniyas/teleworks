@@ -1,3 +1,27 @@
-@tailwind base;
+/* Bootstrap dulu sebagai dasar tampilan */
+@import "bootstrap/dist/css/bootstrap.min.css";
+
+/* Lalu komponen Tailwind di atas Bootstrap */
 @tailwind components;
 @tailwind utilities;
+
+/* Font & gaya custom */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Variable.woff2") format("woff2"); /* kalau file ada di public/fonts */
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: #0b1220;
+  color: #e6eef8;
+}
+
+.card { background: #0f1724; border: 1px solid rgba(255,255,255,0.04); }
+.muted { color: rgba(230,238,248,0.6); }
+.result-title { color: #e6eef8; text-decoration: none; }
+.small-muted { color: rgba(230,238,248,0.55); font-size: .85rem; }
+
