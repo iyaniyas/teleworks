@@ -6,12 +6,10 @@
   $tgl  = $now->format('d M Y');
   $waktu= $now->format('d M Y H:i') . ' WIB';
 
-  // Susun frasa utama SEO
   $seoMain = 'Lowongan ' . (!empty($q) ? ucwords($q) : 'Kerja')
            . (!empty($lokasi) ? ' di ' . $lokasi : '')
            . ($wfh == '1' ? ' WFH/Remote' : '');
 
-  // Judul halaman <title>
   $seoTitle = trim($seoMain) . ' — Teleworks (' . $tgl . ')';
 @endphp
 
@@ -61,42 +59,49 @@
   </div>
 
   @if($jobs->count())
-    @foreach($jobs as $job)
-      @php
-        // semua link utama diarahkan ke halaman detail internal Teleworks
-        $href = url('/loker/'.$job->id);
-      @endphp
+    {{-- === GRID MODE === --}}
+    <div class="row g-3">
+      @foreach($jobs as $job)
+        @php
+          $href = url('/loker/'.$job->id);
+        @endphp
 
-      <article class="card mb-2 p-3">
-        <div class="d-flex justify-content-between">
-          <div>
-            <a href="{{ $href }}"
-               class="h6 result-title">
-               {{ $job->title }}
-            </a>
-            <div class="small-muted">
-              {{ $job->company }} — {{ $job->location }}
-              @if($job->is_wfh) · <span class="badge bg-success">WFH</span>@endif
-              @if(!empty($job->source)) · <span class="badge bg-info text-dark">{{ ucfirst($job->source) }}</span>@endif
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm hover-card p-3 border-0 bg-dark text-light">
+            <div class="d-flex flex-column h-100">
+              <div class="mb-2">
+                <a href="{{ $href }}" class="h6 result-title text-decoration-none text-light">
+                  {{ $job->title }}
+                </a>
+              </div>
+
+              <div class="small-muted mb-2">
+                {{ $job->company ?? 'Perusahaan tidak disebut' }} — {{ $job->location ?? 'Lokasi tidak diketahui' }}
+                @if($job->is_wfh)
+                  <span class="badge bg-success ms-1">WFH</span>
+                @endif
+                @if(!empty($job->source))
+                  <span class="badge bg-info text-dark ms-1">{{ ucfirst($job->source) }}</span>
+                @endif
+              </div>
+
+              <p class="flex-grow-1 muted small mb-2">
+                {{ \Illuminate\Support\Str::limit(strip_tags($job->description), 120) }}
+              </p>
+
+              <div class="d-flex justify-content-between align-items-center mt-auto small-muted">
+                <div>{{ optional($job->created_at)->timezone(config('app.timezone','Asia/Jakarta'))->format('d M Y') }}</div>
+                @if(!empty($job->type))
+                  <div class="text-end">{{ $job->type }}</div>
+                @endif
+              </div>
             </div>
-          </div>
-          <div class="text-end small-muted">
-            <div>{{ optional($job->created_at)->timezone(config('app.timezone','Asia/Jakarta'))->format('d M Y') }}</div>
-            @if(!empty($job->type))
-              <div class="mt-1">{{ $job->type }}</div>
-            @endif
-          </div>
+          </article>
         </div>
+      @endforeach
+    </div>
 
-        <p class="mt-2 muted mb-0">
-          {{ \Illuminate\Support\Str::limit(strip_tags($job->description), 180) }}
-          <a href="{{ $href }}"
-             class="text-decoration-none"> &raquo; baca</a>
-        </p>
-      </article>
-    @endforeach
-
-    <div class="mt-3">
+    <div class="mt-4">
       {{ $jobs->links('pagination::bootstrap-5') }}
     </div>
   @else
@@ -105,4 +110,27 @@
     </div>
   @endif
 @endsection
+
+@push('styles')
+<style>
+  .hover-card {
+    transition: all 0.2s ease-in-out;
+  }
+  .hover-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(255,255,255,0.1);
+  }
+  .small-muted {
+    color: #bbb !important;
+    font-size: 0.875rem;
+  }
+  .muted {
+    color: #ccc;
+  }
+  .highlight {
+    color: #fff;
+    font-weight: 500;
+  }
+</style>
+@endpush
 

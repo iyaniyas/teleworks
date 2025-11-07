@@ -11,7 +11,9 @@ class Job extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title', 'description', 'company', 'location', 'type',
+        'title', 'description', 'company', 'company_domain',
+        'apply_url', 'final_url', 'url_source',
+        'posted_at', 'fingerprint', 'source', 'discovered_at', 'easy_apply', 'location', 'type',
         'is_wfh', 'search', 'source_url', 'raw_html',
         'is_imported', 'status', 'expires_at'
     ];
