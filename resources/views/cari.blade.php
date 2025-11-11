@@ -76,8 +76,8 @@
               </div>
 
               <div class="small-muted mb-2">
-                {{ $job->company ?? 'Perusahaan tidak disebut' }} — {{ $job->location ?? 'Lokasi tidak diketahui' }}
-                @if($job->is_wfh)
+                {{ $job->company ?? 'Perusahaan tidak disebut' }} — {{ $job->location ?? $job->job_location ?? 'Lokasi tidak diketahui' }}
+                @if(($job->is_wfh ?? 0) || ($job->is_remote ?? 0))
                   <span class="badge bg-success ms-1">WFH</span>
                 @endif
                 @if(!empty($job->source))
@@ -90,7 +90,7 @@
               </p>
 
               <div class="d-flex justify-content-between align-items-center mt-auto small-muted">
-                <div>{{ optional($job->created_at)->timezone(config('app.timezone','Asia/Jakarta'))->format('d M Y') }}</div>
+                <div>{{ optional($job->date_posted ?? $job->created_at)->timezone(config('app.timezone','Asia/Jakarta'))->format('d M Y') }}</div>
                 @if(!empty($job->type))
                   <div class="text-end">{{ $job->type }}</div>
                 @endif

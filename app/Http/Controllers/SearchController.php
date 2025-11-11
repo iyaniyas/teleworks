@@ -4,8 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Job;
-use App\Models\SearchLog; // opsional: kalau belum ada, abaikan atau hapus blok logging
-use Illuminate\Support\Facades\Cache;
+use App\Models\SearchLog; // opsional: aman jika tidak ada
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -22,47 +21,48 @@ class SearchController extends Controller
         $lokasi   = trim($request->query('lokasi', ''));
         $wfh      = $request->boolean('wfh'); // true jika ?wfh=1
         $perPage  = 15;
+        $page     = max(1, (int) $request->query('page', 1));
 
-        // cache key per kombinasi parameter & halaman
-        $cacheKey = 'search:' . md5("q:$q|lok:$lokasi|wfh:".($wfh?1:0)."|page:" . $request->query('page', 1));
+        // --- Build base query (tampilkan hanya published & belum expired) ---
+        $query = Job::query()
+            ->where('status', 'published')
+            ->where(function($qb) {
+                $qb->whereNull('expires_at')
+                   ->orWhere('expires_at', '>', now());
+            });
 
-        $jobs = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($q, $lokasi, $wfh, $perPage) {
+        // pencarian sederhana (LIKE) di title/company/description
+        if ($q !== '') {
+            $query->where(function ($qq) use ($q) {
+                $qq->where('title', 'like', "%{$q}%")
+                   ->orWhere('company', 'like', "%{$q}%")
+                   ->orWhere('description', 'like', "%{$q}%");
+            });
+        }
 
-            $query = Job::query()
-                // status aktif (tabel kamu ada kolom `status`)
-               // ->where('status', 1)
-                // jangan tampilkan yang kadaluarsa
-                ->where(function($qb) {
-                    $qb->whereNull('expires_at')
-                       ->orWhere('expires_at', '>', Carbon::now());
-                });
+        // filter lokasi (jika diberikan)
+        if ($lokasi !== '') {
+            $query->where(function($qq) use ($lokasi) {
+                $qq->where('location', 'like', "%{$lokasi}%")
+                   ->orWhere('job_location', 'like', "%{$lokasi}%");
+            });
+        }
 
-            // pencarian sederhana (LIKE) di title/company/description
-            if ($q !== '') {
-                $query->where(function ($qq) use ($q) {
-                    $qq->where('title', 'like', "%{$q}%")
-                       ->orWhere('company', 'like', "%{$q}%")
-                       ->orWhere('description', 'like', "%{$q}%");
-                });
-            }
+        // filter WFH: periksa kedua kolom is_wfh atau is_remote
+        if ($wfh) {
+            $query->where(function($qq) {
+                $qq->where('is_wfh', 1)
+                   ->orWhere('is_remote', 1);
+            });
+        }
 
-            // filter lokasi
-            if ($lokasi !== '') {
-                $query->where('location', 'like', "%{$lokasi}%");
-            }
+        // urutan: prioritaskan date_posted jika ada, fallback created_at
+        $query->orderByDesc('date_posted')->orderByDesc('created_at');
 
-            // filter WFH (kolom kamu: is_wfh)
-           // if ($wfh) {
-           //     $query->where('is_wfh', 1);
-           // }
+        // paginate (tidak di-cache agar selalu fresh selama debugging)
+        $jobs = $query->paginate($perPage)->withQueryString();
 
-            // urutan terbaru
-            $query->orderBy('created_at', 'desc');
-
-            return $query->paginate($perPage)->withQueryString();
-        });
-
-        // logging pencarian (opsional; aman jika tabel/model SearchLog ada)
+        // optional: logging pencarian (aman jika model tidak ada)
         try {
             if (class_exists(SearchLog::class)) {
                 SearchLog::create([
@@ -82,6 +82,7 @@ class SearchController extends Controller
             \Log::warning('SearchLog error: ' . $e->getMessage());
         }
 
+        // render view
         return view('cari', [
             'jobs'     => $jobs,
             'q'        => $q,

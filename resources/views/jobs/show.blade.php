@@ -17,6 +17,9 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 .tw-btn:hover { background: linear-gradient(90deg,#1d4ed8,#1e3a8a); color: #fff; }
 .tw-alert { background: #22252c; border: 1px solid #2e323b; color: #b0b6c3; border-radius: .5rem; padding: .75rem 1rem; }
 .job-desc { white-space: pre-line; line-height: 1.6; color: #dde6f5; }
+.small-muted { color: #bbb !important; font-size: 0.875rem; }
+.muted { color: #ccc; }
+.highlight { color: #fff; font-weight: 500; }
 </style>
 
 <div class="mb-3">
@@ -34,12 +37,14 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
     @if($job->date_posted) • Diposting {{ \Carbon\Carbon::parse($job->date_posted)->translatedFormat('d M Y') }}@endif
   </div>
 
-  @if($job->base_salary_min || $job->base_salary_max)
+  @if($job->base_salary_min || $job->base_salary_max || $job->base_salary_string)
   <div class="tw-section mb-3">
     <strong>Gaji:</strong>
     @php $cur = $job->base_salary_currency ?? 'IDR'; $unit = $job->base_salary_unit ?? 'MONTH'; @endphp
     <div class="tw-salary mt-1">
-      @if($job->base_salary_min && $job->base_salary_max)
+      @if(!empty($job->base_salary_string))
+        {{ $job->base_salary_string }}
+      @elseif($job->base_salary_min && $job->base_salary_max)
         {{ $cur }} {{ number_format($job->base_salary_min) }} – {{ number_format($job->base_salary_max) }} / {{ $unit }}
       @elseif($job->base_salary_min)
         mulai {{ $cur }} {{ number_format($job->base_salary_min) }} / {{ $unit }}
@@ -50,7 +55,6 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   </div>
   @endif
 
-  {{-- START: Job Details (English) - inserted above description, does not change any existing logic --}}
   <div class="tw-section mb-4">
     <h2 class="h5 fw-bold mb-3" style="color:#cfe6ff;">Job Details</h2>
     <ul class="list-unstyled small" style="line-height:1.8;">
@@ -75,7 +79,10 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
       @endif
 
       @if($job->applicant_location_requirements)
-        <li><strong>Applicant Location Requirements:</strong> {{ $job->applicant_location_requirements }}</li>
+        @php
+          $appReq = is_array($job->applicant_location_requirements) ? $job->applicant_location_requirements : (json_decode($job->applicant_location_requirements, true) ?: [$job->applicant_location_requirements]);
+        @endphp
+        <li><strong>Applicant Location Requirements:</strong> {{ implode(', ', $appReq) }}</li>
       @endif
 
       @if($job->employment_type)
@@ -86,18 +93,13 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
         <li><strong>Base Salary:</strong> {{ $job->base_salary_string }}</li>
       @endif
 
-      @if($job->identifier)
-        <li><strong>Identifier:</strong> {{ $job->identifier }}</li>
+      @if($job->identifier_value)
+        <li><strong>Identifier:</strong> {{ $job->identifier_name ?? 'job_id' }}: {{ $job->identifier_value }}</li>
       @endif
 
-      @if(!empty($job->direct_apply))
-        <li><strong>Direct Apply:</strong> Yes</li>
-      @else
-        <li><strong>Direct Apply:</strong> No</li>
-      @endif
+      <li><strong>Direct Apply:</strong> {{ !empty($job->direct_apply) ? 'Yes' : 'No' }}</li>
     </ul>
   </div>
-  {{-- END: Job Details (English) --}}
 
   <div class="tw-section mb-4 job-desc">
     {!! $job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>' !!}
