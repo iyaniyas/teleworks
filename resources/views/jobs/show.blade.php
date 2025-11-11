@@ -50,6 +50,55 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   </div>
   @endif
 
+  {{-- START: Job Details (English) - inserted above description, does not change any existing logic --}}
+  <div class="tw-section mb-4">
+    <h2 class="h5 fw-bold mb-3" style="color:#cfe6ff;">Job Details</h2>
+    <ul class="list-unstyled small" style="line-height:1.8;">
+      @if($job->date_posted)
+        <li><strong>Date Posted:</strong> {{ \Carbon\Carbon::parse($job->date_posted)->translatedFormat('d M Y') }}</li>
+      @endif
+
+      @if($job->valid_through)
+        <li><strong>Valid Through:</strong> {{ \Carbon\Carbon::parse($job->valid_through)->translatedFormat('d M Y') }}</li>
+      @endif
+
+      @if($job->hiring_organization)
+        <li><strong>Hiring Organization:</strong> {{ $job->hiring_organization }}</li>
+      @endif
+
+      @if($job->job_location)
+        <li><strong>Job Location:</strong> {{ $job->job_location }}</li>
+      @endif
+
+      @if($job->job_location_type)
+        <li><strong>Job Location Type:</strong> {{ ucfirst($job->job_location_type) }}</li>
+      @endif
+
+      @if($job->applicant_location_requirements)
+        <li><strong>Applicant Location Requirements:</strong> {{ $job->applicant_location_requirements }}</li>
+      @endif
+
+      @if($job->employment_type)
+        <li><strong>Employment Type:</strong> {{ ucfirst($job->employment_type) }}</li>
+      @endif
+
+      @if($job->base_salary_string)
+        <li><strong>Base Salary:</strong> {{ $job->base_salary_string }}</li>
+      @endif
+
+      @if($job->identifier)
+        <li><strong>Identifier:</strong> {{ $job->identifier }}</li>
+      @endif
+
+      @if(!empty($job->direct_apply))
+        <li><strong>Direct Apply:</strong> Yes</li>
+      @else
+        <li><strong>Direct Apply:</strong> No</li>
+      @endif
+    </ul>
+  </div>
+  {{-- END: Job Details (English) --}}
+
   <div class="tw-section mb-4 job-desc">
     {!! $job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>' !!}
   </div>
