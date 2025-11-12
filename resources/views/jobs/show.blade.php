@@ -16,7 +16,7 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 .tw-btn { background: linear-gradient(90deg,#2563eb,#1e40af); color: #fff; border: none; border-radius: .5rem; padding: .6rem 1.5rem; font-weight: 600; text-decoration: none; transition: .2s; }
 .tw-btn:hover { background: linear-gradient(90deg,#1d4ed8,#1e3a8a); color: #fff; }
 .tw-alert { background: #22252c; border: 1px solid #2e323b; color: #b0b6c3; border-radius: .5rem; padding: .75rem 1rem; }
-.job-desc { white-space: pre-line; line-height: 1.6; color: #dde6f5; }
+.job-desc { line-height: 1.6; color: #dde6f5; }
 .small-muted { color: #bbb !important; font-size: 0.875rem; }
 .muted { color: #ccc; }
 .highlight { color: #fff; font-weight: 500; }
@@ -30,12 +30,8 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 
 <div class="tw-card">
   <h1 class="h4 fw-bold mb-2" style="color:#f3f7ff;">{{ $job->title ?? 'Tanpa Judul' }}</h1>
-  <div class="tw-muted mb-3">
-    <strong style="color:#dbeeff;">{{ $job->hiring_organization ?? $job->company ?? 'Perusahaan Tidak Diketahui' }}</strong>
-    @if($job->is_remote) • <span class="tw-badge">Remote</span>@endif
-    @if($job->job_location) • {{ $job->job_location }}@endif
-    @if($job->date_posted) • Diposting {{ \Carbon\Carbon::parse($job->date_posted)->translatedFormat('d M Y') }}@endif
-  </div>
+
+  {{-- NOTE: informasi ringkas di bawah judul dihapus sesuai permintaan --}}
 
   @if($job->base_salary_min || $job->base_salary_max || $job->base_salary_string)
   <div class="tw-section mb-3">
@@ -102,7 +98,7 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   </div>
 
   <div class="tw-section mb-4 job-desc">
-    {!! $job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>' !!}
+    {!! $job->description_html ?? ($job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>') !!}
   </div>
 
   @if(!empty($job->apply_url))
@@ -113,11 +109,8 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   <div class="tw-alert mb-4">Link lamaran belum tersedia.</div>
   @endif
 
-  <div class="tw-muted small">
-    @if($job->valid_through)
-      Berlaku sampai {{ \Carbon\Carbon::parse($job->valid_through)->translatedFormat('d M Y') }}
-    @endif
-  </div>
+  {{-- NOTE: blok 'Berlaku sampai...' dihapus sesuai permintaan --}}
+
 </div>
 </div>
 @endsection

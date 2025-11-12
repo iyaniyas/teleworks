@@ -40,6 +40,9 @@ class Job extends Model
         'easy_apply',
         'raw',
         'fingerprint',
+
+        // html description (sanitized)
+        'description_html',
     ];
 
     protected $casts = [

@@ -139,8 +139,13 @@ class ImportTheirStackJobs extends Command
                     if (empty($jobLocation) && !empty($loc['display_name'])) $jobLocation = $loc['display_name'];
                 }
 
-                // Description
-                $description = $j['description'] ?? data_get($j, 'description_html') ?? null;
+                // Description (raw)
+                $rawDescription = $j['description'] ?? data_get($j, 'description_html') ?? null;
+
+                // Convert raw description => sanitized HTML with **Heading** -> <h3>Heading</h3>
+                $descriptionHtml = $this->convertAsterisksHeadingsToHtml($rawDescription);
+                // plain text fallback
+                $descriptionPlain = trim(strip_tags($descriptionHtml));
 
                 // Apply URL / final_url
                 $applyUrl = $this->pickApplyUrl($j);
@@ -234,7 +239,8 @@ class ImportTheirStackJobs extends Command
                     'company_domain'                  => $companyDomain,
                     'location'                        => $jobLocation,
                     'is_remote'                       => $isRemote,
-                    'description'                     => $description,
+                    'description'                     => $descriptionPlain,
+                    'description_html'                => $descriptionHtml,
                     'apply_url'                       => $applyUrl,
                     'final_url'                       => $finalUrl,
                     'source_url'                      => $sourceUrlNormalized,
@@ -367,5 +373,58 @@ class ImportTheirStackJobs extends Command
 
         return null;
     }
+
+/**
+ * Convert semua **text** menjadi <b>text</b>,
+ * dan wrap ke dalam paragraf yang rapi tanpa h3.
+ * Sanitize untuk keamanan HTML.
+ */
+private function convertAsterisksHeadingsToHtml(?string $text): string
+{
+    if (empty($text)) return '';
+
+    // Decode HTML entities (jika ada)
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
+
+    // Normalisasi baris
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+
+    // Ubah semua **kata** (termasuk baris tunggal) jadi <b>kata</b>
+    $text = preg_replace('/\*\*(.+?)\*\*/s', '<b>$1</b>', $text);
+
+    // Pecah jadi paragraf per dua baris kosong
+    $blocks = preg_split("/\n{2,}/", $text);
+    $out = [];
+    foreach ($blocks as $block) {
+        $block = trim($block);
+        if ($block === '') continue;
+
+        // Escape dan ubah newline tunggal jadi <br>
+        $escaped = nl2br($block);
+
+        // Pastikan aman (hapus tag selain yang diizinkan)
+        $allowed = '<p><br><ul><ol><li><strong><em><b><i><a>';
+        $clean = strip_tags($escaped, $allowed);
+
+        // Bungkus jadi paragraf
+        $out[] = "<p>{$clean}</p>";
+    }
+
+    $html = implode("\n", $out);
+
+    // Sanitasi link
+    $html = preg_replace_callback('/<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/i', function ($m) {
+        $href = trim($m[1]);
+        $text = $m[2];
+        if (preg_match('/^\s*javascript:/i', $href)) {
+            return $text;
+        }
+        $href = e($href);
+        return '<a href="' . $href . '" rel="nofollow noopener" target="_blank">' . $text . '</a>';
+    }, $html);
+
+    return $html;
+}
+
 }
 
