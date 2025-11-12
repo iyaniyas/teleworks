@@ -8,6 +8,12 @@ use Carbon\Carbon;
 
 class JobController extends Controller
 {
+    /**
+     * Show a job and always generate JobPosting JSON-LD (remote / telecommute).
+     *
+     * @param  int|string  $id
+     * @return \Illuminate\View\View
+     */
     public function show($id)
     {
         $job = Job::where('id', $id)->firstOrFail();
@@ -31,36 +37,127 @@ class JobController extends Controller
         // employmentType: fallback to Full time
         $employmentType = $job->employment_type ?? 'Full time';
 
-        // applicantLocationRequirements: try decode or fallback to Indonesia
-        $appReq = $job->applicant_location_requirements;
-        if (is_null($appReq)) {
-            $appReq = ['Indonesia'];
-        } elseif (!is_array($appReq)) {
-            $decoded = json_decode($appReq, true);
-            $appReq = is_array($decoded) ? $decoded : [$appReq];
+        //
+        // applicantLocationRequirements -> normalize & map country codes to full names
+        //
+        $appReqField = $job->applicant_location_requirements;
+        if (is_null($appReqField) || $appReqField === '') {
+            $rawAppReq = [];
+        } elseif (is_array($appReqField)) {
+            $rawAppReq = $appReqField;
+        } else {
+            $decoded = json_decode($appReqField, true);
+            $rawAppReq = is_array($decoded) ? $decoded : [$appReqField];
         }
 
-        // baseSalary: prefer string else structured object if min/max exists
-        $baseSalary = null;
-        if (!empty($job->base_salary_string)) {
-            $baseSalary = $job->base_salary_string;
-        } elseif (!empty($job->base_salary_min) || !empty($job->base_salary_max)) {
-            $baseSalary = [
-                "@type" => "MonetaryAmount",
-                "currency" => $job->base_salary_currency ?? 'IDR',
-                "value" => [
-                    "@type" => "QuantitativeValue",
-                    "minValue" => $job->base_salary_min ? (float)$job->base_salary_min : null,
-                    "maxValue" => $job->base_salary_max ? (float)$job->base_salary_max : null,
-                    "unitText" => $job->base_salary_unit ?? 'YEAR'
-                ]
+        // simple mapping for common ISO country codes -> full name (expand as needed)
+        $countryMap = [
+            'ID' => 'Indonesia',
+            'IDN' => 'Indonesia',
+            'US' => 'United States',
+            'USA' => 'United States',
+            'GB' => 'United Kingdom',
+            'UK' => 'United Kingdom',
+            'IN' => 'India',
+            'SG' => 'Singapore',
+            'AU' => 'Australia',
+            'CA' => 'Canada',
+            'PH' => 'Philippines',
+            // add more if needed
+        ];
+
+        $applicantLocationRequirements = [];
+        foreach ($rawAppReq as $r) {
+            $rTrim = trim((string)$r);
+            if ($rTrim === '') continue;
+            // if looks like 2-3 letter code, map; else use raw text
+            $upper = strtoupper($rTrim);
+            if (strlen($upper) >= 2 && strlen($upper) <= 3 && isset($countryMap[$upper])) {
+                $name = $countryMap[$upper];
+            } elseif (strlen($upper) === 2 && isset($countryMap[$upper])) {
+                $name = $countryMap[$upper];
+            } else {
+                // try to map common forms like 'id' -> Indonesia
+                if (isset($countryMap[$upper])) {
+                    $name = $countryMap[$upper];
+                } else {
+                    $name = $rTrim;
+                }
+            }
+            $applicantLocationRequirements[] = [
+                "@type" => "Country",
+                "name" => $name
             ];
         }
 
-        // identifier: prefer identifier_name/value else fallback to job id
-        $identifierName = $job->identifier_name ?? 'job_id';
-        $identifierValue = $job->identifier_value ?? (string)$job->id;
+        // default fallback to Indonesia if empty (optional)
+        if (empty($applicantLocationRequirements)) {
+            $applicantLocationRequirements[] = [
+                "@type" => "Country",
+                "name" => "Indonesia"
+            ];
+        }
 
+        //
+        // baseSalary: build MonetaryAmount + QuantitativeValue according to available data
+        //
+        $baseSalary = null;
+        $currency = $job->base_salary_currency ?? 'IDR';
+        // normalize unit to accepted values: HOUR|DAY|WEEK|MONTH|YEAR
+        $unitText = strtoupper($job->base_salary_unit ?? 'YEAR');
+        $allowedUnits = ['HOUR','DAY','WEEK','MONTH','YEAR'];
+        if (!in_array($unitText, $allowedUnits)) {
+            // try to detect common variants
+            if (strpos(strtolower($unitText), 'month') !== false) $unitText = 'MONTH';
+            elseif (strpos(strtolower($unitText), 'day') !== false) $unitText = 'DAY';
+            elseif (strpos(strtolower($unitText), 'week') !== false) $unitText = 'WEEK';
+            elseif (strpos(strtolower($unitText), 'hour') !== false) $unitText = 'HOUR';
+            else $unitText = 'YEAR';
+        }
+
+        // numeric min/max preferred (they are likely annual from TheirStack)
+        $hasMin = !empty($job->base_salary_min) || $job->base_salary_min === 0 || $job->base_salary_min === '0';
+        $hasMax = !empty($job->base_salary_max) || $job->base_salary_max === 0 || $job->base_salary_max === '0';
+
+        if ($hasMin || $hasMax) {
+            $qv = ["@type" => "QuantitativeValue", "unitText" => $unitText];
+            if ($hasMin) $qv["minValue"] = (float)$job->base_salary_min;
+            if ($hasMax) $qv["maxValue"] = (float)$job->base_salary_max;
+
+            $baseSalary = [
+                "@type" => "MonetaryAmount",
+                "currency" => $currency,
+                "value" => $qv
+            ];
+        } elseif (!empty($job->base_salary_string)) {
+            // try to parse single numeric from string (e.g. "$40.00", "USD 40.00", "100000")
+            $s = $job->base_salary_string;
+            // capture first numeric token (allow commas, dots, k)
+            if (preg_match('/(\d{1,3}(?:[,\.\d]{0,})\s*[kK]?)/', $s, $m)) {
+                $num = $m[1];
+                $isK = false;
+                if (str_ends_with(strtolower($num), 'k')) { $isK = true; $num = substr($num, 0, -1); }
+                $num = preg_replace('/[,\.\s]/','', $num);
+                if (is_numeric($num)) {
+                    $val = (float)$num;
+                    if ($isK) $val *= 1000;
+                    $baseSalary = [
+                        "@type" => "MonetaryAmount",
+                        "currency" => $currency,
+                        "value" => [
+                            "@type" => "QuantitativeValue",
+                            "value" => $val,
+                            "unitText" => $unitText
+                        ]
+                    ];
+                }
+            }
+            // if parsing failed, we keep baseSalary null (we still display string on page)
+        }
+
+        //
+        // Build JobPosting JSON-LD (telecommute)
+        //
         $jobLd = [
             "@context" => "https://schema.org",
             "@type" => "JobPosting",
@@ -74,24 +171,28 @@ class JobController extends Controller
                 "name" => $job->hiring_organization,
                 "sameAs" => $job->company_domain ? (strpos($job->company_domain, 'http') === 0 ? $job->company_domain : 'https://'.$job->company_domain) : null,
             ] : null,
-            "jobLocation" => $job->job_location ? [
+            // For remote jobs, provide a Place with addressLocality 'Remote' or job_location if present
+            "jobLocation" => [
                 "@type" => "Place",
                 "address" => [
                     "@type" => "PostalAddress",
                     "streetAddress" => null,
-                    "addressLocality" => $job->job_location,
+                    "addressLocality" => $job->job_location ? $job->job_location : 'Remote',
                     "addressCountry" => null
                 ]
-            ] : null,
-            "applicantLocationRequirements" => $appReq,
+            ],
+            // applicantLocationRequirements: single object or array
+            "applicantLocationRequirements" => (count($applicantLocationRequirements) === 1) ? $applicantLocationRequirements[0] : $applicantLocationRequirements,
+            // include baseSalary only if structured numeric info available
             "baseSalary" => $baseSalary,
             "directApply" => (bool)$job->direct_apply,
             "identifier" => [
                 "@type" => "PropertyValue",
-                "name" => $identifierName,
-                "value" => $identifierValue,
+                "name" => $job->identifier_name ?? 'job_id',
+                "value" => $job->identifier_value ?? (string)$job->id,
             ],
-            "jobLocationType" => $job->job_location_type ?? ($job->is_remote ? 'Remote' : 'Onsite'),
+            // Explicitly mark as telecommute for Google
+            "jobLocationType" => "TELECOMMUTE",
         ];
 
         // Remove nulls/top-level empties for cleanliness
@@ -99,8 +200,14 @@ class JobController extends Controller
             return $v !== null && $v !== [];
         });
 
+        // If baseSalary was null we remove the key entirely (array_filter above doesn't remove nested nulls)
+        if (empty($jobLd['baseSalary'])) {
+            unset($jobLd['baseSalary']);
+        }
+
         $jobPostingJsonLd = json_encode($jobLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
+        // Return view with job and generated JSON-LD
         return view('jobs.show', compact('job', 'jobPostingJsonLd'));
     }
 }

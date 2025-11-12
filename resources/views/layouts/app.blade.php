@@ -1,4 +1,4 @@
-<!doctype html> 
+<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
@@ -15,15 +15,15 @@
   <meta name="robots" content="index, follow" />
 
   {{-- Preload font Inter (pilih salah satu sumber font) --}}
-  {{-- Opsi A: font ada di public/fonts (tidak di-hash) --}}
   <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/Inter-Variable.woff2') }}" crossorigin>
-
-  {{-- Opsi B: kalau font kamu taruh di resources/fonts dan diproses Vite, pakai ini, lalu HAPUS preload Opsi A di atas --}}
-  {{-- <link rel="preload" as="font" type="font/woff2" href="{{ Vite::asset('resources/fonts/Inter-Variable.woff2') }}" crossorigin> --}}
 
   {{-- Vite entry: app.js sudah import app.css + bootstrap + alpine --}}
   @vite('resources/js/app.js')
 
+  {{-- Inject JSON-LD pushed from views --}}
+  @stack('schema')
+
+  {{-- Other head pushes --}}
   @stack('head')
 </head>
 <body class="bg-[#0b1220] text-[#e6eef8]">

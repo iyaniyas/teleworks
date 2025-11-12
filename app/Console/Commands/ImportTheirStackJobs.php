@@ -98,12 +98,8 @@ class ImportTheirStackJobs extends Command
                     $this->line('Job keys: ' . implode(', ', $keys));
                 }
 
-                // pastikan remote (safety)
-                $isRemote = (bool)($j['remote'] ?? false);
-                if (!$isRemote) {
-                    $skipped++;
-                    continue;
-                }
+                // ---- safety: treat all as remote per your project requirement ----
+                $isRemote = true;
 
                 // MAPPING — gunakan semua alternatif yang mungkin
                 $sourceId = $j['id'] ?? $j['job_id'] ?? null;
@@ -159,23 +155,21 @@ class ImportTheirStackJobs extends Command
                 $datePosted = !empty($j['date_posted']) ? Carbon::parse($j['date_posted'])->toDateString() : now()->toDateString();
 
                 // Filter posted_at_max_age_days if option provided
-                if ($earliestPostedDate !== null) {
+                // (kept as-is)
+                $postedAtMaxAgeOpt = $this->option('posted-at-max-age-days');
+                if ($postedAtMaxAgeOpt !== null && $postedAtMaxAgeOpt !== '') {
+                    $postedAtMaxAge = (int)$postedAtMaxAgeOpt;
+                    $earliestPostedDate = Carbon::today()->subDays($postedAtMaxAge)->startOfDay();
                     try {
                         $datePostedCarbon = Carbon::parse($datePosted)->startOfDay();
                         if ($datePostedCarbon->lt($earliestPostedDate)) {
-                            // skip job older than allowed range
                             $skipped++;
-                            if ($debug) {
-                                $this->line("Skipped by posted_at_max_age_days: {$title} ({$datePosted})");
-                            }
+                            if ($debug) $this->line("Skipped by posted_at_max_age_days: {$title} ({$datePosted})");
                             continue;
                         }
                     } catch (\Exception $e) {
-                        // If parse error, skip to be safe
                         $skipped++;
-                        if ($debug) {
-                            $this->line("Skipped due to invalid date_posted: " . ($j['date_posted'] ?? 'N/A'));
-                        }
+                        if ($debug) $this->line("Skipped due to invalid date_posted: " . ($j['date_posted'] ?? 'N/A'));
                         continue;
                     }
                 }
@@ -188,17 +182,73 @@ class ImportTheirStackJobs extends Command
                     $appLocReq = [$appLocReq];
                 }
 
-                // Salary fields
-                $salaryString = $j['salary_str'] ?? $j['salary_string'] ?? null;
-                // annual min/max to monthly (optional) — keep as is (annual) and map to base_salary_min/max if present
-                $minAnnual = $j['min_annual_salary'] ?? $j['min_annual_salary_usd'] ?? null;
-                $maxAnnual = $j['max_annual_salary'] ?? $j['max_annual_salary_usd'] ?? null;
-
-                // If annual provided and DB expects monthly, you may convert; here we store raw numbers where appropriate:
-                $baseMin = $j['min_annual_salary'] ?? $j['min_annual_salary_usd'] ?? ($j['min_salary'] ?? null);
-                $baseMax = $j['max_annual_salary'] ?? $j['max_annual_salary_usd'] ?? ($j['max_salary'] ?? null);
+                // -----------------------------
+                // SALARY extraction (priority + fallback)
+                // -----------------------------
+                // Prefer explicit salary fields from TheirStack
+                $salaryString = $j['salary_string'] ?? $j['salary_str'] ?? $j['salary'] ?? null;
+                $minAnnualRaw = $j['min_annual_salary'] ?? $j['min_annual_salary_usd'] ?? $j['min_salary'] ?? null;
+                $maxAnnualRaw = $j['max_annual_salary'] ?? $j['max_annual_salary_usd'] ?? $j['max_salary'] ?? null;
                 $salaryCurrency = $j['salary_currency'] ?? $j['currency'] ?? null;
-                $salaryUnit = 'YEAR'; // default since many fields are annual in TheirStack schema
+
+                // Normalize numeric min/max if present (ensure floats/null)
+                $baseMin = is_numeric($minAnnualRaw) ? (float)$minAnnualRaw : null;
+                $baseMax = is_numeric($maxAnnualRaw) ? (float)$maxAnnualRaw : null;
+
+                // Assume annual if numeric fields exist
+                $salaryUnit = 'YEAR';
+
+                // If salary_string exists but min/max numeric missing, try parse numbers from the string
+                if ((empty($baseMin) && empty($baseMax)) && !empty($salaryString)) {
+                    $s = $salaryString;
+                    // normalize
+                    $s_norm = preg_replace('/[^\d\-\.,kK ]+/', ' ', $s);
+                    $s_norm = preg_replace('/[–—−]/u', '-', $s_norm);
+                    if (preg_match_all('/(\d{1,3}(?:[,\.\d]{0,})\s*[kK]?)/', $s_norm, $m) && count($m[1]) >= 1) {
+                        $parseNumber = function($t){
+                            $t = trim($t);
+                            $isK = false;
+                            if ($t === '') return null;
+                            if (str_ends_with(strtolower($t), 'k')) { $isK = true; $t = substr($t, 0, -1); }
+                            $t = preg_replace('/[,\.\s]/','', $t);
+                            if ($t === '' || !is_numeric($t)) return null;
+                            $v = (float)$t;
+                            if ($isK) $v *= 1000;
+                            return $v;
+                        };
+                        $n0 = $parseNumber($m[1][0]);
+                        $n1 = isset($m[1][1]) ? $parseNumber($m[1][1]) : null;
+                        if ($n0 !== null) $baseMin = $n0;
+                        if ($n1 !== null) $baseMax = $n1;
+                    }
+                }
+
+                // If still no salary info, fallback to Indonesian UMR monthly range
+                if (empty($salaryString) && empty($baseMin) && empty($baseMax)) {
+                    $salaryUnit = 'MONTH';
+                    $salaryCurrency = 'IDR';
+                    $baseMin = 2000000.00;
+                    $baseMax = 10000000.00;
+                    $salaryString = 'IDR ' . number_format($baseMin, 0, ',', '.') . ' - IDR ' . number_format($baseMax, 0, ',', '.');
+                } else {
+                    // make sure salaryString exists (compose if only numeric present)
+                    if (empty($salaryString) && ($baseMin || $baseMax)) {
+                        $cur = $salaryCurrency ?? 'USD';
+                        if ($baseMin && $baseMax) {
+                            $salaryString = $cur . ' ' . number_format($baseMin) . ' - ' . $cur . ' ' . number_format($baseMax);
+                        } elseif ($baseMin) {
+                            $salaryString = $cur . ' ' . number_format($baseMin);
+                        }
+                    }
+                    // Keep currency default
+                    if (empty($salaryCurrency)) {
+                        $salaryCurrency = $j['salary_currency'] ?? $j['currency'] ?? null;
+                    }
+                }
+
+                // ensure numeric types
+                $baseMin = is_numeric($baseMin) ? (float)$baseMin : null;
+                $baseMax = is_numeric($baseMax) ? (float)$baseMax : null;
 
                 // employmentType
                 $employmentStatuses = $j['employment_statuses'] ?? $j['employment_type'] ?? $j['employment'] ?? null;
@@ -215,10 +265,10 @@ class ImportTheirStackJobs extends Command
                 $directApply = (bool)($j['direct_apply'] ?? $j['directApply'] ?? false);
 
                 // jobLocationType
-                $jobLocationType = $isRemote ? 'Remote' : ((isset($j['hybrid']) && $j['hybrid']) ? 'Hybrid' : 'Onsite');
+                $jobLocationType = 'Remote'; // all remote
 
-                // validThrough: only for remote per your rule (datePosted + 45)
-                $validThrough = $isRemote ? Carbon::parse($datePosted)->addDays(45)->toDateString() : null;
+                // validThrough: datePosted + 45 (remote)
+                $validThrough = Carbon::parse($datePosted)->addDays(45)->toDateString();
 
                 // fingerprint (title|company|location|datePosted)
                 $fp = $this->makeFingerprint($title, $company, $jobLocation, $datePosted);
@@ -238,7 +288,7 @@ class ImportTheirStackJobs extends Command
                     'company'                         => $company,
                     'company_domain'                  => $companyDomain,
                     'location'                        => $jobLocation,
-                    'is_remote'                       => $isRemote,
+                    'is_remote'                       => true,
                     'description'                     => $descriptionPlain,
                     'description_html'                => $descriptionHtml,
                     'apply_url'                       => $applyUrl,
@@ -274,14 +324,11 @@ class ImportTheirStackJobs extends Command
                     } else {
                         // Not a new insert — we could count updates separately if desired
                         if ($debug) {
-                            // build simple var for logging to avoid complex expressions in interpolation
                             $sourceUrlForLog = isset($uniqueKey['source_url']) ? $uniqueKey['source_url'] : 'by-fp';
                             $this->line("Updated existing job: {$job->id} ({$sourceUrlForLog})");
                         }
                     }
                 } catch (\Exception $e) {
-                    // In case of race-condition or other unique constraint on different index,
-                    // log and skip to keep the importer running.
                     $this->warn("Failed to save job (skipped): " . ($title ?? 'n/a') . " — " . $e->getMessage());
                     $skipped++;
                     continue;
@@ -374,57 +421,56 @@ class ImportTheirStackJobs extends Command
         return null;
     }
 
-/**
- * Convert semua **text** menjadi <b>text</b>,
- * dan wrap ke dalam paragraf yang rapi tanpa h3.
- * Sanitize untuk keamanan HTML.
- */
-private function convertAsterisksHeadingsToHtml(?string $text): string
-{
-    if (empty($text)) return '';
+    /**
+     * Convert semua **text** menjadi <b>text</b>,
+     * dan wrap ke dalam paragraf yang rapi tanpa h3.
+     * Sanitize untuk keamanan HTML.
+     */
+    private function convertAsterisksHeadingsToHtml(?string $text): string
+    {
+        if (empty($text)) return '';
 
-    // Decode HTML entities (jika ada)
-    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
+        // Decode HTML entities (jika ada)
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
 
-    // Normalisasi baris
-    $text = str_replace(["\r\n", "\r"], "\n", $text);
+        // Normalisasi baris
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
 
-    // Ubah semua **kata** (termasuk baris tunggal) jadi <b>kata</b>
-    $text = preg_replace('/\*\*(.+?)\*\*/s', '<b>$1</b>', $text);
+        // Ubah semua **kata** (termasuk baris tunggal) jadi <b>kata</b>
+        $text = preg_replace('/\*\*(.+?)\*\*/s', '<b>$1</b>', $text);
 
-    // Pecah jadi paragraf per dua baris kosong
-    $blocks = preg_split("/\n{2,}/", $text);
-    $out = [];
-    foreach ($blocks as $block) {
-        $block = trim($block);
-        if ($block === '') continue;
+        // Pecah jadi paragraf per dua baris kosong
+        $blocks = preg_split("/\n{2,}/", $text);
+        $out = [];
+        foreach ($blocks as $block) {
+            $block = trim($block);
+            if ($block === '') continue;
 
-        // Escape dan ubah newline tunggal jadi <br>
-        $escaped = nl2br($block);
+            // Escape dan ubah newline tunggal jadi <br>
+            $escaped = nl2br($block);
 
-        // Pastikan aman (hapus tag selain yang diizinkan)
-        $allowed = '<p><br><ul><ol><li><strong><em><b><i><a>';
-        $clean = strip_tags($escaped, $allowed);
+            // Pastikan aman (hapus tag selain yang diizinkan)
+            $allowed = '<p><br><ul><ol><li><strong><em><b><i><a>';
+            $clean = strip_tags($escaped, $allowed);
 
-        // Bungkus jadi paragraf
-        $out[] = "<p>{$clean}</p>";
-    }
-
-    $html = implode("\n", $out);
-
-    // Sanitasi link
-    $html = preg_replace_callback('/<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/i', function ($m) {
-        $href = trim($m[1]);
-        $text = $m[2];
-        if (preg_match('/^\s*javascript:/i', $href)) {
-            return $text;
+            // Bungkus jadi paragraf
+            $out[] = "<p>{$clean}</p>";
         }
-        $href = e($href);
-        return '<a href="' . $href . '" rel="nofollow noopener" target="_blank">' . $text . '</a>';
-    }, $html);
 
-    return $html;
-}
+        $html = implode("\n", $out);
 
+        // Sanitasi link
+        $html = preg_replace_callback('/<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/i', function ($m) {
+            $href = trim($m[1]);
+            $text = $m[2];
+            if (preg_match('/^\s*javascript:/i', $href)) {
+                return $text;
+            }
+            $href = e($href);
+            return '<a href="' . $href . '" rel="nofollow noopener" target="_blank">' . $text . '</a>';
+        }, $html);
+
+        return $html;
+    }
 }
 

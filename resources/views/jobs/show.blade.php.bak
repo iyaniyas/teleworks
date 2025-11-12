@@ -31,6 +31,26 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 <div class="tw-card">
   <h1 class="h4 fw-bold mb-2" style="color:#f3f7ff;">{{ $job->title ?? 'Tanpa Judul' }}</h1>
 
+  {{-- NOTE: informasi ringkas di bawah judul dihapus sesuai permintaan --}}
+
+  @if($job->base_salary_min || $job->base_salary_max || $job->base_salary_string)
+  <div class="tw-section mb-3">
+    <strong>Gaji:</strong>
+    @php $cur = $job->base_salary_currency ?? 'IDR'; $unit = $job->base_salary_unit ?? 'MONTH'; @endphp
+    <div class="tw-salary mt-1">
+      @if(!empty($job->base_salary_string))
+        {{ $job->base_salary_string }}
+      @elseif($job->base_salary_min && $job->base_salary_max)
+        {{ $cur }} {{ number_format($job->base_salary_min) }} – {{ number_format($job->base_salary_max) }} / {{ $unit }}
+      @elseif($job->base_salary_min)
+        mulai {{ $cur }} {{ number_format($job->base_salary_min) }} / {{ $unit }}
+      @elseif($job->base_salary_max)
+        s.d. {{ $cur }} {{ number_format($job->base_salary_max) }} / {{ $unit }}
+      @endif
+    </div>
+  </div>
+  @endif
+
   <div class="tw-section mb-4">
     <h2 class="h5 fw-bold mb-3" style="color:#cfe6ff;">Job Details</h2>
     <ul class="list-unstyled small" style="line-height:1.8;">
@@ -65,19 +85,8 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
         <li><strong>Employment Type:</strong> {{ ucfirst($job->employment_type) }}</li>
       @endif
 
-      {{-- Base Salary: show string or structured numbers --}}
-      @if($job->base_salary_string || $job->base_salary_min || $job->base_salary_max)
-        <li><strong>Base Salary:</strong>
-          @if(!empty($job->base_salary_string))
-            {{ $job->base_salary_string }}
-          @elseif($job->base_salary_min && $job->base_salary_max)
-            {{ $job->base_salary_currency ?? 'IDR' }} {{ number_format($job->base_salary_min) }} – {{ number_format($job->base_salary_max) }} / {{ $job->base_salary_unit ?? 'MONTH' }}
-          @elseif($job->base_salary_min)
-            mulai {{ $job->base_salary_currency ?? 'IDR' }} {{ number_format($job->base_salary_min) }} / {{ $job->base_salary_unit ?? 'MONTH' }}
-          @elseif($job->base_salary_max)
-            s.d. {{ $job->base_salary_currency ?? 'IDR' }} {{ number_format($job->base_salary_max) }} / {{ $job->base_salary_unit ?? 'MONTH' }}
-          @endif
-        </li>
+      @if($job->base_salary_string)
+        <li><strong>Base Salary:</strong> {{ $job->base_salary_string }}</li>
       @endif
 
       @if($job->identifier_value)
@@ -107,10 +116,8 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 @endsection
 
 @push('schema')
-@if(!empty($jobPostingJsonLd))
 <script type="application/ld+json">
 {!! $jobPostingJsonLd !!}
 </script>
-@endif
 @endpush
 
