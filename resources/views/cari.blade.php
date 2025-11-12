@@ -6,43 +6,38 @@
   $tgl  = $now->format('d M Y');
   $waktu= $now->format('d M Y H:i') . ' WIB';
 
-  $seoMain = 'Lowongan ' . (!empty($q) ? ucwords($q) : 'Kerja')
-           . (!empty($lokasi) ? ' di ' . $lokasi : '')
-           . ($wfh == '1' ? ' WFH/Remote' : '');
+  // Variabel untuk tampilan
+  $qDisplay = $q ?? '';
+  $lokasiDisplay = $lokasi ?? '';
 
-  $seoTitle = trim($seoMain) . ' — Teleworks (' . $tgl . ')';
+  // Buat canonical URL: selalu sertakan ?q=&lokasi=
+  $canonicalUrl = url('/cari') . '?q=' . urlencode($qDisplay ?? '') . '&lokasi=' . urlencode($lokasiDisplay ?? '');
 @endphp
 
-@section('title', $seoTitle)
+@section('title', trim('Lowongan ' . ($qDisplay ?: 'kerja') . ($lokasiDisplay ? ' di ' . $lokasiDisplay : '')) . ' — Teleworks (' . $tgl . ')')
+
+@push('head')
+  <link rel="canonical" href="{{ $canonicalUrl }}" />
+@endpush
 
 @section('content')
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h4 mb-0">
-      {{ $seoMain }}
-      @if($wfh == '1')
-        <span class="badge bg-success ms-1">WFH</span>
-      @endif
+      Lowongan {{ $qDisplay ?: 'kerja' }}{{ $lokasiDisplay ? ' di ' . $lokasiDisplay : '' }}
     </h1>
-    <a href="{{ url('/') }}" class="text-decoration-none muted">Beranda</a>
   </div>
 
+  {{-- Form pencarian --}}
   <div class="card mb-3 p-3">
     <form method="GET" action="{{ route('search.index') }}" class="row g-2 align-items-center">
       <div class="col-md-5">
-        <input type="search" name="q" value="{{ $q }}" class="form-control form-control-dark"
-               placeholder="Posisi, perusahaan, kata kunci..." />
+        <input id="search-q" type="search" name="q" value="{{ old('q', $qRaw ?? $qDisplay ?? '') }}" class="form-control form-control-dark"
+               placeholder="Posisi, perusahaan, kata kunci..." autocomplete="off" />
       </div>
 
-      <div class="col-md-3">
-        <input type="text" name="lokasi" value="{{ $lokasi }}" class="form-control form-control-dark"
+      <div class="col-md-5">
+        <input id="search-lokasi" type="text" name="lokasi" value="{{ old('lokasi', $lokasiRaw ?? $lokasiDisplay ?? '') }}" class="form-control form-control-dark"
                placeholder="Lokasi (kota/kabupaten)" />
-      </div>
-
-      <div class="col-md-2 d-flex align-items-center">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="wfh" id="wfh" value="1" {{ $wfh == '1' ? 'checked' : '' }}>
-          <label class="form-check-label small-muted" for="wfh">WFH saja</label>
-        </div>
       </div>
 
       <div class="col-md-2 text-end">
@@ -51,19 +46,13 @@
     </form>
   </div>
 
-  <div class="mb-1 small-muted">
-    Diperbarui: <span class="highlight">{{ $waktu }}</span>
-  </div>
-  <div class="mb-3 small-muted">
-    Menampilkan <span class="highlight">{{ number_format($jobs->total()) }}</span> hasil.
-  </div>
-
+  {{-- Daftar hasil --}}
   @if($jobs->count())
-    {{-- === GRID MODE === --}}
     <div class="row g-3">
       @foreach($jobs as $job)
         @php
           $href = url('/loker/'.$job->id);
+          $sourceLower = !empty($job->source) ? strtolower($job->source) : '';
         @endphp
 
         <div class="col-12 col-md-6 col-lg-4">
@@ -77,17 +66,13 @@
 
               <div class="small-muted mb-2">
                 {{ $job->company ?? 'Perusahaan tidak disebut' }} — {{ $job->location ?? $job->job_location ?? 'Lokasi tidak diketahui' }}
-                @if(($job->is_wfh ?? 0) || ($job->is_remote ?? 0))
-                  <span class="badge bg-success ms-1">WFH</span>
-                @endif
-                @if(!empty($job->source))
+                @if(!empty($job->source) && $sourceLower !== 'theirstack')
                   <span class="badge bg-info text-dark ms-1">{{ ucfirst($job->source) }}</span>
                 @endif
               </div>
 
-              <p class="flex-grow-1 muted small mb-2">
-                {{ \Illuminate\Support\Str::limit(strip_tags($job->description), 120) }}
-              </p>
+              {{-- snippet deskripsi dihapus --}}
+              <div class="flex-grow-1 small-muted mb-2"></div>
 
               <div class="d-flex justify-content-between align-items-center mt-auto small-muted">
                 <div>{{ optional($job->date_posted ?? $job->created_at)->timezone(config('app.timezone','Asia/Jakarta'))->format('d M Y') }}</div>
@@ -106,7 +91,7 @@
     </div>
   @else
     <div class="card p-3">
-      <p class="mb-0 muted">Tidak ditemukan lowongan. Coba variasikan kata kunci atau hilangkan filter lokasi/WFH.</p>
+      <p class="mb-0 muted">Tidak ditemukan lowongan. Coba variasikan kata kunci atau hilangkan filter lokasi.</p>
     </div>
   @endif
 @endsection
@@ -132,5 +117,44 @@
     font-weight: 500;
   }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+  (function() {
+    // deteksi sederhana device mobile
+    function isMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    function safeFocus() {
+      try {
+        var el = document.getElementById('search-q');
+        if (!el) return;
+        if (!isMobile()) {
+          setTimeout(function() {
+            el.focus();
+            var len = el.value.length;
+            if (typeof el.selectionStart === 'number') {
+              el.setSelectionRange(len, len);
+            }
+          }, 50);
+        }
+      } catch (e) {
+        console.warn('safeFocus error', e);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', safeFocus);
+    } else {
+      safeFocus();
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') safeFocus();
+    });
+  })();
+</script>
 @endpush
 

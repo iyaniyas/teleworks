@@ -1,6 +1,14 @@
 @extends('layouts.app')
+@section('title', 'Loker '.($job->title ?? 'Lowongan Kerja').' — Teleworks')
+@php
+  // Gunakan lokasi dari kolom job_location jika ada, kalau kosong tampilkan 'Indonesia'
+  $lokasi = !empty($job->job_location) ? $job->job_location : 'Indonesia';
+  $metaDescriptionText = 'Loker '.e($job->title).' di '.e($lokasi).' remote, WFH, dan freelance terbaru di Teleworks.';
+@endphp
 
-@section('title', ($job->title ?? 'Lowongan Kerja').' — Teleworks')
+@section('meta_description', $metaDescriptionText)
+
+
 
 @section('content')
 <div class="container my-4">
@@ -20,6 +28,8 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 .small-muted { color: #bbb !important; font-size: 0.875rem; }
 .muted { color: #ccc; }
 .highlight { color: #fff; font-weight: 500; }
+.related-list a { display:block; padding:.4rem 0; border-bottom:1px dashed rgba(255,255,255,0.03); }
+.city-links a { display:inline-block; margin-right:.5rem; margin-bottom:.25rem; padding:.35rem .6rem; background:#0e1720; border-radius:.4rem; text-decoration:none; color:#9ecbff; font-size:.9rem; }
 </style>
 
 <div class="mb-3">
@@ -32,42 +42,59 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   <h1 class="h4 fw-bold mb-2" style="color:#f3f7ff;">{{ $job->title ?? 'Tanpa Judul' }}</h1>
 
   <div class="tw-section mb-4">
-    <h2 class="h5 fw-bold mb-3" style="color:#cfe6ff;">Job Details</h2>
+    <h2 class="h5 fw-bold mb-3" style="color:#cfe6ff;">Rincian Lowongan</h2>
     <ul class="list-unstyled small" style="line-height:1.8;">
       @if($job->date_posted)
-        <li><strong>Date Posted:</strong> {{ \Carbon\Carbon::parse($job->date_posted)->translatedFormat('d M Y') }}</li>
+        <li><strong>Dipublikasikan:</strong> {{ \Carbon\Carbon::parse($job->date_posted)->translatedFormat('d M Y') }}</li>
       @endif
 
       @if($job->valid_through)
-        <li><strong>Valid Through:</strong> {{ \Carbon\Carbon::parse($job->valid_through)->translatedFormat('d M Y') }}</li>
+        <li><strong>Berlaku Hingga:</strong> {{ \Carbon\Carbon::parse($job->valid_through)->translatedFormat('d M Y') }}</li>
       @endif
 
       @if($job->hiring_organization)
-        <li><strong>Hiring Organization:</strong> {{ $job->hiring_organization }}</li>
+        <li><strong>Perusahaan:</strong> {{ $job->hiring_organization }}</li>
       @endif
 
       @if($job->job_location)
-        <li><strong>Job Location:</strong> {{ $job->job_location }}</li>
+        <li><strong>Lokasi Kerja:</strong> {{ $job->job_location }}</li>
       @endif
 
       @if($job->job_location_type)
-        <li><strong>Job Location Type:</strong> {{ ucfirst($job->job_location_type) }}</li>
+        <li><strong>Tipe Lokasi:</strong> {{ ucfirst($job->job_location_type) }}</li>
       @endif
 
       @if($job->applicant_location_requirements)
         @php
-          $appReq = is_array($job->applicant_location_requirements) ? $job->applicant_location_requirements : (json_decode($job->applicant_location_requirements, true) ?: [$job->applicant_location_requirements]);
+          // decode & normalize applicant location requirements,
+          // map common country codes like ID/IDN -> Indonesia
+          $raw = is_array($job->applicant_location_requirements) ? $job->applicant_location_requirements : (json_decode($job->applicant_location_requirements, true) ?: [$job->applicant_location_requirements]);
+          $map = ['ID' => 'Indonesia','IDN' => 'Indonesia','id'=>'Indonesia','Id'=>'Indonesia'];
+          $appReqDisplay = [];
+          foreach($raw as $r) {
+              $rStr = trim((string)$r);
+              if ($rStr === '') continue;
+              $u = strtoupper($rStr);
+              if (isset($map[$u])) {
+                  $appReqDisplay[] = $map[$u];
+              } elseif (isset($map[$rStr])) {
+                  $appReqDisplay[] = $map[$rStr];
+              } else {
+                  $appReqDisplay[] = $rStr;
+              }
+          }
+          if (empty($appReqDisplay)) { $appReqDisplay = ['Indonesia']; }
         @endphp
-        <li><strong>Applicant Location Requirements:</strong> {{ implode(', ', $appReq) }}</li>
+        <li><strong>Syarat Lokasi Pelamar:</strong> {{ implode(', ', $appReqDisplay) }}</li>
       @endif
 
       @if($job->employment_type)
-        <li><strong>Employment Type:</strong> {{ ucfirst($job->employment_type) }}</li>
+        <li><strong>Jenis Pekerjaan:</strong> {{ ucfirst($job->employment_type) }}</li>
       @endif
 
       {{-- Base Salary: show string or structured numbers --}}
       @if($job->base_salary_string || $job->base_salary_min || $job->base_salary_max)
-        <li><strong>Base Salary:</strong>
+        <li><strong>Gaji:</strong>
           @if(!empty($job->base_salary_string))
             {{ $job->base_salary_string }}
           @elseif($job->base_salary_min && $job->base_salary_max)
@@ -81,14 +108,16 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
       @endif
 
       @if($job->identifier_value)
-        <li><strong>Identifier:</strong> {{ $job->identifier_name ?? 'job_id' }}: {{ $job->identifier_value }}</li>
+        <li><strong>ID Lowongan:</strong> {{ $job->identifier_name ?? 'job_id' }}: {{ $job->identifier_value }}</li>
       @endif
 
-      <li><strong>Direct Apply:</strong> {{ !empty($job->direct_apply) ? 'Yes' : 'No' }}</li>
+      <li><strong>Kirim Langsung:</strong> {{ !empty($job->direct_apply) ? 'Ya' : 'Tidak' }}</li>
     </ul>
   </div>
 
   <div class="tw-section mb-4 job-desc">
+    {{-- Tambahkan judul posisi ke dalam deskripsi sesuai permintaan --}}
+    <p><strong>Posisi:</strong> {{ $job->title }}</p>
     {!! $job->description_html ?? ($job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>') !!}
   </div>
 
@@ -100,7 +129,36 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   <div class="tw-alert mb-4">Link lamaran belum tersedia.</div>
   @endif
 
-  {{-- NOTE: blok 'Berlaku sampai...' dihapus sesuai permintaan --}}
+  {{-- Related jobs (loker terbaru) --}}
+  <div class="tw-section mb-4">
+    <h3 class="h6 fw-bold mb-2" style="color:#cfe6ff;">Loker terbaru</h3>
+    @if(!empty($relatedJobs) && $relatedJobs->count() > 0)
+      <div class="related-list small">
+        @foreach($relatedJobs as $r)
+          <a href="{{ url('/loker/'.$r->id) }}" title="{{ $r->title ?? 'Lowongan' }}" class="muted">
+            • {{ $r->title ?? 'Tanpa Judul' }}
+            @if($r->date_posted)
+              <span class="small-muted"> — {{ \Carbon\Carbon::parse($r->date_posted)->translatedFormat('d M Y') }}</span>
+            @endif
+          </a>
+        @endforeach
+      </div>
+    @else
+      <div class="small-muted">Tidak ada loker terkait.</div>
+    @endif
+  </div>
+
+  {{-- 5 Kota Teratas di Indonesia (huruf kecil) --}}
+  <div class="tw-section mb-4">
+    <h3 class="h6 fw-bold mb-2" style="color:#cfe6ff;">5 Kota Teratas — Jelajahi berdasarkan kota</h3>
+    <div class="city-links">
+      <a href="https://remotewfh.id/cari?q=&lokasi=jakarta">jakarta</a>
+      <a href="https://remotewfh.id/cari?q=&lokasi=bandung">bandung</a>
+      <a href="https://remotewfh.id/cari?q=&lokasi=surabaya">surabaya</a>
+      <a href="https://remotewfh.id/cari?q=&lokasi=medan">medan</a>
+      <a href="https://remotewfh.id/cari?q=&lokasi=semarang">semarang</a>
+    </div>
+  </div>
 
 </div>
 </div>

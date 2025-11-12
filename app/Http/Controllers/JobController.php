@@ -207,8 +207,19 @@ class JobController extends Controller
 
         $jobPostingJsonLd = json_encode($jobLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-        // Return view with job and generated JSON-LD
-        return view('jobs.show', compact('job', 'jobPostingJsonLd'));
+        //
+        // RELATED JOBS: ambil loker terbaru (kecuali current)
+        // urutkan berdasarkan date_posted desc, lalu posted_at desc, fallback ke created_at via latest()
+        //
+        $relatedJobs = Job::where('id', '<>', $job->id)
+            ->orderByDesc('date_posted')
+            ->orderByDesc('posted_at')
+            ->orderByDesc('created_at')
+            ->take(6)
+            ->get();
+
+        // Return view with job, generated JSON-LD, and related jobs
+        return view('jobs.show', compact('job', 'jobPostingJsonLd', 'relatedJobs'));
     }
 }
 
