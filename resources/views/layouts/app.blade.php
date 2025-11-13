@@ -14,36 +14,87 @@
   <meta name="description" content="{{ $metaDesc }} (Diperbarui {{ $timestamp }})" />
   <meta name="robots" content="index, follow" />
 
-  {{-- Preload font Inter (pilih salah satu sumber font) --}}
   <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/Inter-Variable.woff2') }}" crossorigin>
 
-  {{-- Vite entry: app.js sudah import app.css + bootstrap + alpine --}}
   @vite('resources/js/app.js')
 
-  {{-- Inject JSON-LD pushed from views --}}
   @stack('schema')
-
-  {{-- Other head pushes --}}
   @stack('head')
+
+  <style>
+    .tw-gradient-logo {
+      background: linear-gradient(90deg, #ffffff, #c9c9c9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  </style>
 </head>
-<body class="bg-[#0b1220] text-[#e6eef8]">
-  <div class="container py-4">
-    <header class="d-flex justify-content-between align-items-center mb-4">
-      <a href="{{ url('/') }}" class="text-decoration-none text-light h4 mb-0">Teleworks</a>
-      <nav>
-        <a href="{{ url('/') }}" class="text-decoration-none muted me-3">Beranda</a>
-        <a href="{{ route('search.index') }}" class="text-decoration-none muted">Cari Lowongan</a>
+
+<body class="bg-[#0b1220] text-[#e6eef8] min-h-screen flex flex-col">
+
+  <div class="container mx-auto px-4 py-4 flex-1">
+
+    {{-- HEADER --}}
+    <header class="flex items-center justify-between mb-6">
+
+      {{-- LOGO --}}
+      <a href="{{ route('home') }}"
+         class="text-3xl font-bold tracking-wide tw-gradient-logo text-uppercase"
+         style="letter-spacing: 1px;">
+         TELEWORKS
+      </a>
+
+      {{-- NAVIGATION (tanpa search bar, tanpa link Beranda) --}}
+      <nav class="flex items-center space-x-4">
+        <a href="{{ route('search.index') }}"
+           class="text-light text-sm px-3 py-2 rounded-md hover:bg-white/5">
+          Cari Lowongan
+        </a>
       </nav>
+
     </header>
 
+
+    {{-- MAIN CONTENT --}}
     <main>
       @yield('content')
     </main>
 
-    <footer class="mt-5 muted small-muted">
-      &copy; {{ date('Y') }} Teleworks — Hasil pencarian disimpan untuk analitik.
-    </footer>
   </div>
+
+
+  {{-- FOOTER --}}
+  <footer class="bg-[#070812] border-t border-[#1a1f26] mt-10">
+    <div class="container mx-auto px-4 py-6">
+
+      <div class="md:flex md:justify-between md:items-start">
+
+        <div class="mb-4 md:mb-0">
+          <span class="text-xl font-bold tw-gradient-logo">TELEWORKS</span>
+          <p class="text-light text-sm mt-2">Temukan pekerjaan remote, WFH, dan freelance terbaru. © {{ date('Y') }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 text-sm text-light">
+          <div>
+            <div class="font-medium text-light mb-1">Menu</div>
+            <a href="{{ route('search.index') }}" class="block py-0.5 text-light">Cari Lowongan</a>
+          </div>
+          <div>
+            <div class="font-medium text-light mb-1">Tentang</div>
+            <a href="/about" class="block py-0.5 text-light">Tentang Teleworks</a>
+            <a href="/privacy" class="block py-0.5 text-light">Kebijakan Privasi</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="mt-6 text-xs text-light">
+        Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥.
+      </div>
+
+    </div>
+  </footer>
+
 
   @stack('scripts')
 </body>

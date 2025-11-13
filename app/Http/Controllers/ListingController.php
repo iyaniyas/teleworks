@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Listing;
+use App\Models\Job;
 use Illuminate\Http\Request;
 use App\Http\Requests\StoreListingRequest;
 use App\Http\Requests\UpdateListingRequest;
@@ -13,9 +14,63 @@ class ListingController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth')->except(['index','show','search']);
+        // Biarkan akses publik ke home (homepage jobs), index (listings index), show dan search
+        $this->middleware('auth')->except(['home','index','show','search']);
     }
 
+    /**
+     * Home page — menampilkan loker (paginated) + top searches (WFH) + top cities (statik)
+     */
+	public function home(Request $request)
+	{	
+    // Ambil loker (tetap dipanggil jika model Job ada, tapi kita fallback jika error)
+    $jobs = collect();
+    try {
+        $jobs = Job::query()
+            ->whereNotNull('date_posted')
+            ->orderByDesc('date_posted')
+            ->paginate(12);
+    } catch (\Throwable $e) {
+        $jobs = collect();
+    }
+
+    // 20 istilah WFH (spesifik)
+    $topSearches = collect([
+        'admin wfh',
+        'admin online wfh',
+        'cs wfh',
+        'customer service wfh',
+        'admin chat wfh',
+        'data entry wfh',
+        'freelance wfh',
+        'part time wfh',
+        'full time wfh',
+        'kerja dari rumah',
+        'remote job indonesia',
+        'content writer wfh',
+        'copywriter wfh',
+        'designer wfh',
+        'digital marketing wfh',
+        'social media wfh',
+        'virtual assistant wfh',
+        'frontend wfh',
+        'backend wfh',
+        'fullstack wfh'
+    ])->slice(0, 20)->values();
+
+    // 30 kota besar (statik)
+    $topCities = collect([
+        'jakarta','surabaya','bandung','bekasi','depok','tangerang','semarang','medan','makassar','palembang',
+        'denpasar','yogyakarta','malang','batam','balikpapan','bandar lampung','pekanbaru','banjarmasin','samarinda','padang',
+        'manado','kupang','pontianak','mataram','jambi','cirebon','tasikmalaya','probolinggo','bengkulu','kediri'
+    ])->slice(0, 30)->values();
+
+    return view('home', compact('jobs','topSearches','topCities'));
+	}
+
+    /**
+     * Index untuk Listing resource (mis. listing barang/jasa)
+     */
     public function index()
     {
         $listings = Listing::where('is_active', true)->latest()->paginate(10);
@@ -38,7 +93,7 @@ class ListingController extends Controller
             $data['image'] = $path;
         }
 
-        // set expires_at jika diasumsikan eks: expires_in_days
+        // set expires_at jika ada input expires_in_days
         if ($request->filled('expires_in_days')) {
             $data['expires_at'] = now()->addDays($request->input('expires_in_days'));
         } else {
@@ -59,7 +114,7 @@ class ListingController extends Controller
 
     public function edit(Listing $listing)
     {
-        $this->authorize('update', $listing); // buat policy atau cek owner
+        $this->authorize('update', $listing); // pastikan policy ada atau cek owner
         return view('listings.edit', compact('listing'));
     }
 
@@ -92,10 +147,12 @@ class ListingController extends Controller
         return redirect()->route('listings.index')->with('success','Listing dihapus.');
     }
 
-    // (opsional) search method
+    /**
+     * (opsional) search method untuk Listing model
+     */
     public function search(Request $request)
     {
-        $q = $request->input('kata');
+        $q = $request->input('kata') ?? $request->input('q');
         $lokasi = $request->input('lokasi');
 
         $query = Listing::query()->where('is_active', true);
