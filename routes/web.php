@@ -15,8 +15,18 @@ use App\Http\Controllers\JobController;
 // Home (listing)
 Route::get('/', [ListingController::class, 'home'])->name('home');
 
+// SEO-friendly route for location-only: /cari/lokasi/{lokasi}
+Route::get('/cari/lokasi/{lokasi}', [SearchController::class, 'slugLocation'])
+    ->name('search.slug.location');
+
+// SEO-friendly slug route (preferred)
+Route::get('/cari/{kata}/{lokasi?}', [SearchController::class, 'slug'])
+    ->name('search.slug');
+
+// Legacy route (form submits here; middleware will redirect to slug when needed)
+
 // Search page
-Route::get('/cari', [SearchController::class, 'index'])->name('search.index');
+Route::get('/cari', [SearchController::class, 'index'])->name('search.index')->middleware('lowercase.query');
 
 // Job detail
 Route::get('/loker/{id}', [JobController::class, 'show'])->name('jobs.show');

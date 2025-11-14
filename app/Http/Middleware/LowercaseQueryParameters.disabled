@@ -1,0 +1,53 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+
+class LowercaseQueryParameters
+{
+    /**
+     * Handle an incoming request.
+     * Lowercase only the QUERY VALUES (not the keys), using mb_strtolower for UTF-8.
+     */
+    public function handle(Request $request, Closure $next)
+    {
+        $originalQuery = $request->query(); // array of key => value
+
+        if (empty($originalQuery)) {
+            return $next($request);
+        }
+
+        $normalized = [];
+        $changed = false;
+
+        foreach ($originalQuery as $key => $value) {
+            // handle array params (e.g. ?tag[]=Foo)
+            if (is_array($value)) {
+                $normalizedValue = array_map(function($v) {
+                    return mb_strtolower((string) $v, 'UTF-8');
+                }, $value);
+            } else {
+                $normalizedValue = mb_strtolower((string) $value, 'UTF-8');
+            }
+
+            if ($normalizedValue !== $value) {
+                $changed = true;
+            }
+
+            $normalized[$key] = $normalizedValue;
+        }
+
+        if ($changed) {
+            $base = $request->url(); // scheme + host + path, tanpa query
+            $query = http_build_query($normalized, '', '&', PHP_QUERY_RFC3986);
+            $newUrl = $base . ($query ? ('?' . $query) : '');
+
+            return redirect()->to($newUrl, 301);
+        }
+
+        return $next($request);
+    }
+}
+

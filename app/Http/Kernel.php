@@ -13,8 +13,13 @@ class Kernel extends HttpKernel
      *
      * @var array<int, class-string|string>
      */
+    // di dalam class Kernel
+     protected $routeMiddleware = [
+    'lowercase.query' => \App\Http\Middleware\LowercaseQueryValuesSafe::class,
+    ];
+
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
+	    // \App\Http\Middleware\TrustHosts::class,\
         \App\Http\Middleware\TrustProxies::class,
         \Illuminate\Http\Middleware\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
@@ -29,13 +34,14 @@ class Kernel extends HttpKernel
      * @var array<string, array<int, class-string|string>>
      */
     protected $middlewareGroups = [
-        'web' => [
+	 'web' => [
+	    \App\Http\Middleware\NormalizeSearch::class,	    
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
-            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+	    \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
 
         'api' => [

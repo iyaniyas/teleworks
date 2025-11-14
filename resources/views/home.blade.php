@@ -39,12 +39,14 @@
 
   {{-- PREPARE DATA --}}
   @php
+    use Illuminate\Support\Str;
+
     // keywords
     $terms = collect([
-      'admin wfh','admin online wfh','cs wfh','customer service wfh','admin chat wfh',
-      'data entry wfh','freelance wfh','part time wfh','full time wfh','kerja dari rumah',
-      'remote job indonesia','content writer wfh','copywriter wfh','designer wfh','digital marketing wfh',
-      'social media wfh','virtual assistant wfh','frontend wfh','backend wfh','fullstack wfh'
+      'admin','admin online','cs','customer service','admin chat',
+      'data entry','freelance','part time','full time','kerja dari rumah',
+      'remote job indonesia','content writer','copywriter','designer','digital marketing',
+      'social media','virtual assistant','frontend','backend','fullstack'
     ])->slice(0,20)->values();
 
     // cities: ambil 20, bagi 2 kolom, 10 per kolom
@@ -74,8 +76,8 @@
         <ul class="list-links space-y-2">
           @foreach($kwA as $term)
             @php
-              $encoded = str_replace(' ', '+', strtolower($term));
-              $link = url('/cari') . '?q=' . $encoded . '&lokasi=';
+              $kataSlug = Str::slug($term, '-');
+              $link = url('/cari/' . $kataSlug);
             @endphp
             <li><a href="{{ $link }}" class="text-light">{{ $term }}</a></li>
           @endforeach
@@ -84,8 +86,8 @@
         <ul class="list-links space-y-2">
           @foreach($kwB as $term)
             @php
-              $encoded = str_replace(' ', '+', strtolower($term));
-              $link = url('/cari') . '?q=' . $encoded . '&lokasi=';
+              $kataSlug = Str::slug($term, '-');
+              $link = url('/cari/' . $kataSlug);
             @endphp
             <li><a href="{{ $link }}" class="text-light">{{ $term }}</a></li>
           @endforeach
@@ -101,8 +103,8 @@
         <ul class="list-links space-y-2">
           @foreach($ctA as $city)
             @php
-              $cityParam = str_replace(' ', '+', strtolower($city));
-              $link = url('/cari') . '?q=&lokasi=' . $cityParam;
+              $citySlug = Str::slug($city, '-');
+              $link = url('/cari/lokasi/' . $citySlug);
             @endphp
             <li><a href="{{ $link }}" class="text-light">{{ strtolower($city) }}</a></li>
           @endforeach
@@ -111,8 +113,8 @@
         <ul class="list-links space-y-2">
           @foreach($ctB as $city)
             @php
-              $cityParam = str_replace(' ', '+', strtolower($city));
-              $link = url('/cari') . '?q=&lokasi=' . $cityParam;
+              $citySlug = Str::slug($city, '-');
+              $link = url('/cari/lokasi/' . $citySlug);
             @endphp
             <li><a href="{{ $link }}" class="text-light">{{ strtolower($city) }}</a></li>
           @endforeach

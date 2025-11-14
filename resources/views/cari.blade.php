@@ -1,20 +1,38 @@
 @extends('layouts.app')
 
 @php
-  $tz   = config('app.timezone', 'Asia/Jakarta');
-  $now  = now()->timezone($tz);
-  $tgl  = $now->format('d M Y');
-  $waktu= $now->format('d M Y H:i') . ' WIB';
+  use Illuminate\Support\Str;
 
-  // Variabel untuk tampilan
-  $qDisplay = $q ?? '';
-  $lokasiDisplay = $lokasi ?? '';
+  // Controller provides: 'jobs', 'q', 'lokasi', 'qRaw', 'lokasiRaw', 'wfh'
+  // Fallbacks if direct access
+  $qRaw = $qRaw ?? request('q') ?? '';
+  $lokasiRaw = $lokasiRaw ?? request('lokasi') ?? '';
 
-  // Buat canonical URL: selalu sertakan ?q=&lokasi=
-  $canonicalUrl = url('/cari') . '?q=' . urlencode($qDisplay ?? '') . '&lokasi=' . urlencode($lokasiDisplay ?? '');
+  // For display in UI we use lowercased strings (consistent with controller)
+  $qDisplay = $q ?? ($qRaw ? mb_strtolower($qRaw) : '');
+  $lokasiDisplay = $lokasi ?? ($lokasiRaw ? mb_strtolower($lokasiRaw) : '');
+
+  // Build canonical:
+  // - both q + lokasi -> /cari/{kataSlug}/{lokasiSlug}
+  // - q only           -> /cari/{kataSlug}
+  // - lokasi only      -> /cari/lokasi/{lokasiSlug}
+  if (!empty($qRaw) || !empty($lokasiRaw)) {
+      $kataSlug = $qRaw ? Str::slug($qRaw, '-') : null;
+      $lokasiSlug = $lokasiRaw ? Str::slug($lokasiRaw, '-') : null;
+
+      if (!$kataSlug && $lokasiSlug) {
+          $canonicalUrl = url('/cari/lokasi/' . $lokasiSlug);
+      } elseif ($kataSlug) {
+          $canonicalUrl = url('/cari/' . $kataSlug . ($lokasiSlug ? '/' . $lokasiSlug : ''));
+      } else {
+          $canonicalUrl = url('/cari');
+      }
+  } else {
+      $canonicalUrl = url('/cari');
+  }
 @endphp
 
-@section('title', trim('Lowongan ' . ($qDisplay ?: 'kerja') . ($lokasiDisplay ? ' di ' . $lokasiDisplay : '')) . ' — Teleworks (' . $tgl . ')')
+@section('title', trim('Lowongan ' . ($qDisplay ?: 'kerja') . ($lokasiDisplay ? ' di ' . $lokasiDisplay : '')))
 
 @push('head')
   <link rel="canonical" href="{{ $canonicalUrl }}" />
@@ -31,12 +49,12 @@
   <div class="card mb-3 p-3">
     <form method="GET" action="{{ route('search.index') }}" class="row g-2 align-items-center">
       <div class="col-md-5">
-        <input id="search-q" type="search" name="q" value="{{ old('q', $qRaw ?? $qDisplay ?? '') }}" class="form-control form-control-dark"
+        <input id="search-q" type="search" name="q" value="{{ old('q', $qRaw ?? $q ?? request('q')) }}" class="form-control form-control-dark"
                placeholder="Posisi, perusahaan, kata kunci..." autocomplete="off" />
       </div>
 
       <div class="col-md-5">
-        <input id="search-lokasi" type="text" name="lokasi" value="{{ old('lokasi', $lokasiRaw ?? $lokasiDisplay ?? '') }}" class="form-control form-control-dark"
+        <input id="search-lokasi" type="text" name="lokasi" value="{{ old('lokasi', $lokasiRaw ?? $lokasi ?? request('lokasi')) }}" class="form-control form-control-dark"
                placeholder="Lokasi (kota/kabupaten)" />
       </div>
 
@@ -47,12 +65,16 @@
   </div>
 
   {{-- Daftar hasil --}}
-  @if($jobs->count())
+  @if(isset($jobs) && $jobs->count())
     <div class="row g-3">
       @foreach($jobs as $job)
         @php
           $href = url('/loker/'.$job->id);
           $sourceLower = !empty($job->source) ? strtolower($job->source) : '';
+          // Tampilkan date_posted kalau ada, fallback ke created_at
+          $postedModel = $job->date_posted ?? $job->created_at ?? null;
+          $posted = $postedModel ? optional($postedModel)->timezone(config('app.timezone','Asia/Jakarta')) : null;
+          $postedDisplay = $posted ? $posted->format('d M Y H:i') . ' WIB' : null;
         @endphp
 
         <div class="col-12 col-md-6 col-lg-4">
@@ -71,11 +93,10 @@
                 @endif
               </div>
 
-              {{-- snippet deskripsi dihapus --}}
               <div class="flex-grow-1 small-muted mb-2"></div>
 
               <div class="d-flex justify-content-between align-items-center mt-auto small-muted">
-                <div>{{ optional($job->date_posted ?? $job->created_at)->timezone(config('app.timezone','Asia/Jakarta'))->format('d M Y') }}</div>
+                <div>{{ $posted ? $posted->format('d M Y') : '' }}</div>
                 @if(!empty($job->type))
                   <div class="text-end">{{ $job->type }}</div>
                 @endif
@@ -122,7 +143,6 @@
 @push('scripts')
 <script>
   (function() {
-    // deteksi sederhana device mobile
     function isMobile() {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
