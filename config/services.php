@@ -13,6 +13,12 @@ return [
     | a conventional file to locate the various service credentials.
     |
      */
+	'reed' => [
+	    'base' => env('REED_BASE_URL', 'https://www.reed.co.uk/api/1.0'),
+	    'key'  => env('REED_API_KEY'),
+	],
+
+
     'theirstack' => [
       'base_url' => env('THEIRSTACK_BASE_URL', 'https://api.theirstack.com'),
       'key'      => env('THEIRSTACK_API_KEY'),

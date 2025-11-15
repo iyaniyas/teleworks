@@ -3,6 +3,9 @@
 @php
   use Illuminate\Support\Str;
 
+  // timestamp untuk halaman pencarian: tampilkan bulan & tahun
+  $timestamp = now()->timezone(config('app.timezone','Asia/Jakarta'))->format('M Y');
+
   // Controller provides: 'jobs', 'q', 'lokasi', 'qRaw', 'lokasiRaw', 'wfh'
   // Fallbacks if direct access
   $qRaw = $qRaw ?? request('q') ?? '';
@@ -13,9 +16,6 @@
   $lokasiDisplay = $lokasi ?? ($lokasiRaw ? mb_strtolower($lokasiRaw) : '');
 
   // Build canonical:
-  // - both q + lokasi -> /cari/{kataSlug}/{lokasiSlug}
-  // - q only           -> /cari/{kataSlug}
-  // - lokasi only      -> /cari/lokasi/{lokasiSlug}
   if (!empty($qRaw) || !empty($lokasiRaw)) {
       $kataSlug = $qRaw ? Str::slug($qRaw, '-') : null;
       $lokasiSlug = $lokasiRaw ? Str::slug($lokasiRaw, '-') : null;
@@ -50,12 +50,12 @@
     <form method="GET" action="{{ route('search.index') }}" class="row g-2 align-items-center">
       <div class="col-md-5">
         <input id="search-q" type="search" name="q" value="{{ old('q', $qRaw ?? $q ?? request('q')) }}" class="form-control form-control-dark"
-               placeholder="Tulis kata kunci" autocomplete="off" />
+               placeholder="Posisi, perusahaan, kata kunci..." autocomplete="off" />
       </div>
 
       <div class="col-md-5">
         <input id="search-lokasi" type="text" name="lokasi" value="{{ old('lokasi', $lokasiRaw ?? $lokasi ?? request('lokasi')) }}" class="form-control form-control-dark"
-               placeholder="Tulis lokasi tekan ENTER" />
+               placeholder="Lokasi (kota/kabupaten)" />
       </div>
 
       <div class="col-md-2 text-end">

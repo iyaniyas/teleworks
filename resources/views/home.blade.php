@@ -3,6 +3,11 @@
 @section('title', 'Teleworks.id – #1 Lowongan Kerja WFH Part Time')
 @section('meta_description', 'Temukan lowongan kerja remote terbaik di Teleworks.id! Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya. Mulai karier fleksibel Anda hari ini!')
 
+@php
+  // timestamp untuk home: Tampilkan bulan dan tahun (contoh: "Nov 2025")
+  $timestamp = now()->timezone(config('app.timezone','Asia/Jakarta'))->format('M Y');
+@endphp
+
 @section('content')
 <div class="container my-4">
 
@@ -21,7 +26,7 @@
     <div class="row g-2 align-items-center">
       <div class="col-md-5">
         <input name="q" type="search" value="{{ request('q') }}"
-               placeholder="Tulis Kata Kunci
+               placeholder="Tulis Kata Kunci"
                class="form-control form-control-dark" />
       </div>
 
