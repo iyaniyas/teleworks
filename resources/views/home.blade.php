@@ -21,13 +21,13 @@
     <div class="row g-2 align-items-center">
       <div class="col-md-5">
         <input name="q" type="search" value="{{ request('q') }}"
-               placeholder="Cari pekerjaan WFH (mis. admin wfh)"
+               placeholder="Tulis Kata Kunci
                class="form-control form-control-dark" />
       </div>
 
       <div class="col-md-5">
         <input name="lokasi" type="text" value="{{ request('lokasi') }}"
-               placeholder="Lokasi (mis. Jakarta)"
+               placeholder="Tulis Lokasi tekan Enter"
                class="form-control form-control-dark" />
       </div>
 
@@ -122,6 +122,13 @@
       </div>
     </div>
 
+  </div>
+
+  {{-- LINK KE SEMUA LOKER (DITAMBAHKAN) --}}
+  <div class="text-center mt-6 mb-4">
+    <a href="{{ route('search.index') }}" class="btn btn-outline-light px-4 py-2" role="button" aria-label="Lihat Semua Lowongan">
+      Lihat Semua Lowongan
+    </a>
   </div>
 
 </div>

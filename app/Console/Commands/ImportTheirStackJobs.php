@@ -46,18 +46,16 @@ class ImportTheirStackJobs extends Command
             'remote'       => true,
         ];
 
-        // pilih strategi avoid duplicate (discovered_at_gte atau job_id_not)
-        if ($avoidStrategy === 'auto' || $avoidStrategy === 'discovered_at') {
-            $latest = Job::where('source', 'theirstack')->max('discovered_at');
-            if ($latest) {
-                $dt = Carbon::parse($latest)->addSecond();
-                $params['discovered_at_gte'] = $dt->toIso8601String();
-                $this->info("Using discovered_at_gte = {$params['discovered_at_gte']}");
-            } elseif ($avoidStrategy === 'discovered_at') {
-                $this->warn("No discovered_at found in DB; continuing without discovered_at_gte.");
-            } else {
-                $avoidStrategy = 'job_id_not';
-            }
+        //
+        // NOTE: removed discovered_at_gte filtering entirely.
+        // If user requested 'discovered_at' or 'auto', we fallback to job_id_not strategy.
+        //
+        if ($avoidStrategy === 'discovered_at') {
+            $this->warn("Option 'discovered_at' requested, but discovered_at_gte filter has been removed. Falling back to 'job_id_not'.");
+            $avoidStrategy = 'job_id_not';
+        } elseif ($avoidStrategy === 'auto') {
+            // auto => prefer job_id_not now that discovered_at_gte is removed
+            $avoidStrategy = 'job_id_not';
         }
 
         if ($avoidStrategy === 'job_id_not') {

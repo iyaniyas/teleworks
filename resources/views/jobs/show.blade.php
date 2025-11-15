@@ -152,11 +152,11 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
   <div class="tw-section mb-4">
     <h3 class="h6 fw-bold mb-2" style="color:#cfe6ff;">5 Kota Teratas — Jelajahi berdasarkan kota</h3>
     <div class="city-links">
-      <a href="https://remotewfh.id/cari?q=&lokasi=jakarta">jakarta</a>
-      <a href="https://remotewfh.id/cari?q=&lokasi=bandung">bandung</a>
-      <a href="https://remotewfh.id/cari?q=&lokasi=surabaya">surabaya</a>
-      <a href="https://remotewfh.id/cari?q=&lokasi=medan">medan</a>
-      <a href="https://remotewfh.id/cari?q=&lokasi=semarang">semarang</a>
+      <a href="https://www.teleworks.id/cari/lokasi/jakarta">jakarta</a>
+      <a href="https://www.teleworks.id/cari/lokasi/bandung">bandung</a>
+      <a href="https://www.teleworks.id/cari/lokasi/surabaya">surabaya</a>
+      <a href="https://www.teleworks.id/cari/lokasi/medan">medan</a>
+      <a href="https://www.teleworks.id/cari/lokasi/semarang">semarang</a>
     </div>
   </div>
 
