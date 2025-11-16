@@ -10,6 +10,7 @@
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
+        "mews/purifier": "^3.4",
         "spatie/browsershot": "^5.0",
         "symfony/css-selector": "^7.3",
         "symfony/dom-crawler": "^7.3"

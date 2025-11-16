@@ -14,6 +14,13 @@ return [
     |
      */
 
+'jsa' => [
+    'base' => env('JSA_BASE', 'https://jobs-search-api.p.rapidapi.com/getjobs'),
+    'key'  => env('JSA_KEY'),
+    'host' => env('JSA_HOST', 'jobs-search-api.p.rapidapi.com'),
+],
+
+
 'careerjet' => [
   'base' => env('CAREERJET_BASE', 'https://search.api.careerjet.net/v4/query'),
   'key'  => env('CAREERJET_API_KEY'),

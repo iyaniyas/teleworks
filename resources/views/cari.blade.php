@@ -30,6 +30,10 @@
   } else {
       $canonicalUrl = url('/cari');
   }
+
+  // Pagination info (when $jobs is a paginator)
+  $currentPage = isset($jobs) && method_exists($jobs, 'currentPage') ? $jobs->currentPage() : (int) (request('page', 1));
+  $lastPage = isset($jobs) && method_exists($jobs, 'lastPage') ? $jobs->lastPage() : null;
 @endphp
 
 @section('title', trim('Lowongan ' . ($qDisplay ?: 'kerja') . ($lokasiDisplay ? ' di ' . $lokasiDisplay : '')))
@@ -43,6 +47,12 @@
     <h1 class="h4 mb-0">
       Lowongan {{ $qDisplay ?: 'kerja' }}{{ $lokasiDisplay ? ' di ' . $lokasiDisplay : '' }}
     </h1>
+
+    @if($lastPage)
+      <div class="small-muted">Halaman {{ $currentPage }} dari {{ $lastPage }}</div>
+    @elseif(request()->has('page') && request('page') != 1)
+      <div class="small-muted">Halaman {{ $currentPage }}</div>
+    @endif
   </div>
 
   {{-- Form pencarian --}}
@@ -70,7 +80,26 @@
       @foreach($jobs as $job)
         @php
           $href = url('/loker/'.$job->id);
-          $sourceLower = !empty($job->source) ? strtolower($job->source) : '';
+          // Prepare company & location display, remove separator if one is empty
+          $companyRaw = trim($job->company ?? '');
+          $locationRaw = trim($job->location ?? $job->job_location ?? '');
+
+          $companyDisplay = $companyRaw !== '' ? $companyRaw : null;
+          $locationDisplayJob = $locationRaw !== '' ? $locationRaw : null;
+
+          // Fallback placeholders only when both are missing
+          if (!$companyDisplay && !$locationDisplayJob) {
+            $companyPlaceholder = 'Perusahaan tidak disebut';
+            $locationPlaceholder = 'Lokasi tidak diketahui';
+            $showCompany = $companyPlaceholder;
+            $showLocation = $locationPlaceholder;
+            $separator = ' — ';
+          } else {
+            $showCompany = $companyDisplay;
+            $showLocation = $locationDisplayJob;
+            $separator = ($showCompany && $showLocation) ? ' — ' : '';
+          }
+
           // Tampilkan date_posted kalau ada, fallback ke created_at
           $postedModel = $job->date_posted ?? $job->created_at ?? null;
           $posted = $postedModel ? optional($postedModel)->timezone(config('app.timezone','Asia/Jakarta')) : null;
@@ -87,9 +116,11 @@
               </div>
 
               <div class="small-muted mb-2">
-                {{ $job->company ?? 'Perusahaan tidak disebut' }} — {{ $job->location ?? $job->job_location ?? 'Lokasi tidak diketahui' }}
-                @if(!empty($job->source) && $sourceLower !== 'theirstack')
-                  <span class="badge bg-info text-dark ms-1">{{ ucfirst($job->source) }}</span>
+                {{-- If both missing, show placeholders; else show only the values that exist without extra dash --}}
+                @if(isset($companyPlaceholder))
+                  {{ $showCompany }}{{ $separator }}{{ $showLocation }}
+                @else
+                  {{ $showCompany ?? '' }}{{ $separator }}{{ $showLocation ?? '' }}
                 @endif
               </div>
 
@@ -97,9 +128,7 @@
 
               <div class="d-flex justify-content-between align-items-center mt-auto small-muted">
                 <div>{{ $posted ? $posted->format('d M Y') : '' }}</div>
-                @if(!empty($job->type))
-                  <div class="text-end">{{ $job->type }}</div>
-                @endif
+                {{-- Tipe pekerjaan dihilangkan sesuai permintaan --}}
               </div>
             </div>
           </article>
