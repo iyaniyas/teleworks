@@ -14,7 +14,7 @@
   {{-- HERO --}}
   <div class="text-center mb-4">
     <h1 class="text-3xl md:text-4xl font-extrabold leading-tight" style="color:#f3f7ff;">
-      Teleworks.id – #1 Lowongan Kerja WFH Part Time
+      Teleworks.id
     </h1>
     <p class="mt-3 max-w-3xl mx-auto text-sm md:text-base tw-muted" style="color:#cfdcec;">
       Temukan lowongan kerja remote terbaik di Teleworks.id! Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya.
@@ -75,7 +75,7 @@
 
     {{-- LEFT CARD: Kata Kunci --}}
     <div class="tw-card p-4">
-      <h3 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kata Kunci WFH</h3>
+      <h2 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kata Kunci WFH</h2>
 
       <div class="grid grid-cols-2 gap-x-6">
         <ul class="list-links space-y-2">
@@ -102,7 +102,7 @@
 
     {{-- RIGHT CARD: Kota Pencarian (2 kolom, 10 per kolom) --}}
     <div class="tw-card p-4">
-      <h3 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kota Pencarian (WFH)</h3>
+      <h2 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kota Pencarian</h2>
 
       <div class="grid grid-cols-2 gap-x-6">
         <ul class="list-links space-y-2">

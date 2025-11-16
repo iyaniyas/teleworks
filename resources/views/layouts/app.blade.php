@@ -46,7 +46,7 @@
       <nav class="flex items-center space-x-4">
         <a href="{{ route('search.index') }}"
            class="text-light text-sm px-3 py-2 rounded-md hover:bg-white/5">
-          Cari Lowongan
+          Semua Lowongan
         </a>
       </nav>
     </header>
@@ -69,7 +69,7 @@
         <div class="grid grid-cols-2 gap-4 text-sm text-light">
           <div>
             <div class="font-medium text-light mb-1">Menu</div>
-            <a href="{{ route('search.index') }}" class="block py-0.5 text-light">Cari Lowongan</a>
+            <a href="{{ route('search.index') }}" class="block py-0.5 text-light">Semua Lowongan</a>
           </div>
           <div>
             <div class="font-medium text-light mb-1">Tentang</div>
@@ -80,7 +80,7 @@
       </div>
 
       <div class="mt-6 text-xs text-light">
-        Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥.
+        Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥ iyaniyas.
       </div>
     </div>
   </footer>
