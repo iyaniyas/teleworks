@@ -9,6 +9,7 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Console\Commands\ScrapeJobStreetSource;
 use App\Console\Commands\ImportAdzunaJobs;
 use App\Console\Commands\ImportTheirStackJobs;
+use App\Console\Commands\ImportCareerjetJobs;
 
 class Kernel extends ConsoleKernel
 {
@@ -19,7 +20,8 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         ScrapeJobStreetSource::class,
         ImportAdzunaJobs::class,
-        ImportTheirStackJobs::class,
+	ImportTheirStackJobs::class,
+	ImportCareerjetJobs::class,
     ];
 
     /**

@@ -13,6 +13,16 @@ return [
     | a conventional file to locate the various service credentials.
     |
      */
+
+'careerjet' => [
+  'base' => env('CAREERJET_BASE', 'https://search.api.careerjet.net/v4/query'),
+  'key'  => env('CAREERJET_API_KEY'),
+  'user_ip' => env('CAREERJET_USER_IP'),
+  'user_agent' => env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0'),
+  'referer' => env('CAREERJET_REFERER', 'https://www.teleworks.id'),
+],
+
+
 	'reed' => [
 	    'base' => env('REED_BASE_URL', 'https://www.reed.co.uk/api/1.0'),
 	    'key'  => env('REED_API_KEY'),
