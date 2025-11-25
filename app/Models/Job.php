@@ -10,6 +10,10 @@ class Job extends Model
 {
     use HasFactory;
 
+    protected $table = 'jobs';
+
+    protected $guarded = ['id'];
+
     protected $fillable = [
         // core
         'title', 'description', 'company', 'company_domain',
@@ -51,7 +55,8 @@ class Job extends Model
         'is_remote' => 'boolean',
         'direct_apply' => 'boolean',
         'date_posted' => 'date',
-        'valid_through' => 'date',
+	'valid_through' => 'date',
+	'easy_apply' => 'boolean',
         'applicant_location_requirements' => 'array',
         'raw' => 'array',
         'discovered_at' => 'datetime',

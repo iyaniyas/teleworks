@@ -2,24 +2,17 @@
 
 @php
   use Illuminate\Support\Str;
-
-  // timestamp untuk halaman pencarian: tampilkan bulan & tahun
   $timestamp = now()->timezone(config('app.timezone','Asia/Jakarta'))->format('M Y');
 
-  // Controller provides: 'jobs', 'q', 'lokasi', 'qRaw', 'lokasiRaw', 'wfh'
-  // Fallbacks if direct access
   $qRaw = $qRaw ?? request('q') ?? '';
   $lokasiRaw = $lokasiRaw ?? request('lokasi') ?? '';
 
-  // For display in UI we use lowercased strings (consistent with controller)
   $qDisplay = $q ?? ($qRaw ? mb_strtolower($qRaw) : '');
   $lokasiDisplay = $lokasi ?? ($lokasiRaw ? mb_strtolower($lokasiRaw) : '');
 
-  // Build canonical:
   if (!empty($qRaw) || !empty($lokasiRaw)) {
       $kataSlug = $qRaw ? Str::slug($qRaw, '-') : null;
       $lokasiSlug = $lokasiRaw ? Str::slug($lokasiRaw, '-') : null;
-
       if (!$kataSlug && $lokasiSlug) {
           $canonicalUrl = url('/cari/lokasi/' . $lokasiSlug);
       } elseif ($kataSlug) {
@@ -31,9 +24,13 @@
       $canonicalUrl = url('/cari');
   }
 
-  // Pagination info (when $jobs is a paginator)
   $currentPage = isset($jobs) && method_exists($jobs, 'currentPage') ? $jobs->currentPage() : (int) (request('page', 1));
   $lastPage = isset($jobs) && method_exists($jobs, 'lastPage') ? $jobs->lastPage() : null;
+
+  $majorCities = [
+    'jakarta','surabaya','bandung','medan','semarang',
+    'makassar','palembang','tangerang','bekasi','yogyakarta'
+  ];
 @endphp
 
 @section('title', trim('Lowongan ' . ($qDisplay ?: 'kerja') . ($lokasiDisplay ? ' di ' . $lokasiDisplay : '')))
@@ -47,15 +44,8 @@
     <h1 class="h4 mb-0">
       Lowongan {{ $qDisplay ?: 'kerja' }}{{ $lokasiDisplay ? ' di ' . $lokasiDisplay : '' }}
     </h1>
-
-    @if($lastPage)
-      <div class="small-muted">Halaman {{ $currentPage }} dari {{ $lastPage }}</div>
-    @elseif(request()->has('page') && request('page') != 1)
-      <div class="small-muted">Halaman {{ $currentPage }}</div>
-    @endif
   </div>
 
-  {{-- Form pencarian --}}
   <div class="card mb-3 p-3">
     <form method="GET" action="{{ route('search.index') }}" class="row g-2 align-items-center">
       <div class="col-md-5">
@@ -74,20 +64,27 @@
     </form>
   </div>
 
-  {{-- Daftar hasil --}}
+  {{-- generic fallback note (non-branded) --}}
+  @if(!empty($fallback_note))
+    <div class="card mb-3 p-3 bg-dark text-light border-secondary">
+      <div class="small-muted mb-2">{{ $fallback_note }}</div>
+    </div>
+  @endif
+
+  {{-- Results --}}
   @if(isset($jobs) && $jobs->count())
     <div class="row g-3">
       @foreach($jobs as $job)
         @php
-          $href = url('/loker/'.$job->id);
-          // Prepare company & location display, remove separator if one is empty
+          $isExternal = isset($job->is_external) && $job->is_external;
+          $href = $isExternal ? ($job->apply_url ?? $job->url ?? '#') : url('/loker/'.$job->id);
+
           $companyRaw = trim($job->company ?? '');
-          $locationRaw = trim($job->location ?? $job->job_location ?? '');
+          $locationRaw = trim($job->location ?? ($job->job_location ?? ''));
 
           $companyDisplay = $companyRaw !== '' ? $companyRaw : null;
           $locationDisplayJob = $locationRaw !== '' ? $locationRaw : null;
 
-          // Fallback placeholders only when both are missing
           if (!$companyDisplay && !$locationDisplayJob) {
             $companyPlaceholder = 'Perusahaan tidak disebut';
             $locationPlaceholder = 'Lokasi tidak diketahui';
@@ -100,23 +97,22 @@
             $separator = ($showCompany && $showLocation) ? ' — ' : '';
           }
 
-          // Tampilkan date_posted kalau ada, fallback ke created_at
           $postedModel = $job->date_posted ?? $job->created_at ?? null;
-          $posted = $postedModel ? optional($postedModel)->timezone(config('app.timezone','Asia/Jakarta')) : null;
-          $postedDisplay = $posted ? $posted->format('d M Y H:i') . ' WIB' : null;
+          try {
+            $posted = $postedModel ? \Carbon\Carbon::parse($postedModel)->timezone(config('app.timezone','Asia/Jakarta')) : null;
+          } catch (\Throwable $e) { $posted = null; }
         @endphp
 
         <div class="col-12 col-md-6 col-lg-4">
           <article class="card h-100 shadow-sm hover-card p-3 border-0 bg-dark text-light">
             <div class="d-flex flex-column h-100">
               <div class="mb-2">
-                <a href="{{ $href }}" class="h6 result-title text-decoration-none text-light">
+                <a href="{{ $href }}" @if($isExternal) target="_blank" rel="nofollow noopener" @endif class="h6 result-title text-decoration-none text-light">
                   {{ $job->title }}
                 </a>
               </div>
 
               <div class="small-muted mb-2">
-                {{-- If both missing, show placeholders; else show only the values that exist without extra dash --}}
                 @if(isset($companyPlaceholder))
                   {{ $showCompany }}{{ $separator }}{{ $showLocation }}
                 @else
@@ -128,7 +124,6 @@
 
               <div class="d-flex justify-content-between align-items-center mt-auto small-muted">
                 <div>{{ $posted ? $posted->format('d M Y') : '' }}</div>
-                {{-- Tipe pekerjaan dihilangkan sesuai permintaan --}}
               </div>
             </div>
           </article>
@@ -139,6 +134,32 @@
     <div class="mt-4">
       {{ $jobs->links('pagination::bootstrap-5') }}
     </div>
+
+    {{-- show city quick links if query present OR location-only view --}}
+    @if( !empty($qRaw) || (!empty($lokasiRaw) && empty($qRaw)) )
+      <div class="mt-3">
+        <div class="small-muted mb-2">
+          @if(!empty($qRaw))
+            Cari "{{ $qRaw }}" di kota besar:
+          @else
+            Jelajahi lokasi lain:
+          @endif
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          @foreach($majorCities as $city)
+            @php
+              $citySlug = Str::slug($city, '-');
+              $kataSlug = $qRaw ? Str::slug($qRaw, '-') : '';
+              $link = $kataSlug ? url('/cari/' . $kataSlug . '/' . $citySlug) : url('/cari/lokasi/' . $citySlug);
+              $label = ucwords(str_replace(['-'], [' '], $city));
+            @endphp
+            <a href="{{ $link }}" class="btn btn-sm btn-outline-light">{{ $label }}</a>
+          @endforeach
+        </div>
+      </div>
+    @endif
+
   @else
     <div class="card p-3">
       <p class="mb-0 muted">Tidak ditemukan lowongan. Coba variasikan kata kunci atau hilangkan filter lokasi.</p>
@@ -159,51 +180,42 @@
     color: #bbb !important;
     font-size: 0.875rem;
   }
-  .muted {
-    color: #ccc;
-  }
-  .highlight {
-    color: #fff;
-    font-weight: 500;
-  }
+  .muted { color: #ccc; }
+  .result-title:hover { color: #fff; }
+  .gap-2 { gap: .5rem; }
 </style>
 @endpush
 
 @push('scripts')
 <script>
-  (function() {
+(function() {
     function isMobile() {
-      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
-
     function safeFocus() {
-      try {
-        var el = document.getElementById('search-q');
-        if (!el) return;
-        if (!isMobile()) {
-          setTimeout(function() {
-            el.focus();
-            var len = el.value.length;
-            if (typeof el.selectionStart === 'number') {
-              el.setSelectionRange(len, len);
+        try {
+            var el = document.getElementById('search-q');
+            if (!el) return;
+            if (!isMobile()) {
+                setTimeout(function() {
+                    el.focus();
+                    var len = el.value.length;
+                    if (typeof el.selectionStart === 'number') {
+                        el.setSelectionRange(len, len);
+                    }
+                }, 50);
             }
-          }, 50);
-        }
-      } catch (e) {
-        console.warn('safeFocus error', e);
-      }
+        } catch (e) {}
     }
-
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', safeFocus);
+        document.addEventListener('DOMContentLoaded', safeFocus);
     } else {
-      safeFocus();
+        safeFocus();
     }
-
     document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') safeFocus();
+        if (document.visibilityState === 'visible') safeFocus();
     });
-  })();
+})();
 </script>
 @endpush
 

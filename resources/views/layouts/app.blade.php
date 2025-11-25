@@ -62,7 +62,7 @@
     <div class="container mx-auto px-4 py-6">
       <div class="md:flex md:justify-between md:items-start">
         <div class="mb-4 md:mb-0">
-          <span class="text-xl font-bold tw-gradient-logo">TELEWORKS</span>
+          <a href="/"><span class="text-xl font-bold tw-gradient-logo">TELEWORKS</span></a>
           <p class="text-light text-sm mt-2">Temukan pekerjaan remote, WFH, dan freelance terbaru. © {{ date('Y') }}</p>
         </div>
 
@@ -83,6 +83,19 @@
         Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥ iyaniyas.
       </div>
     </div>
+
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1Z77NN195L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-1Z77NN195L');
+</script>
+
+
   </footer>
 
   @stack('scripts')

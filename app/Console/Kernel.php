@@ -7,9 +7,10 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 // Tambahkan jika command tidak autodiscover atau untuk kepastian
 use App\Console\Commands\ScrapeJobStreetSource;
-use App\Console\Commands\ImportAdzunaJobs;
+use App\Console\Commands\ImportJsaJobs;
 use App\Console\Commands\ImportTheirStackJobs;
 use App\Console\Commands\ImportCareerjetJobs;
+use \App\Console\Commands\ImportRemoteOk;
 
 class Kernel extends ConsoleKernel
 {
@@ -18,8 +19,9 @@ class Kernel extends ConsoleKernel
      * (Laravel modern biasanya autodiscover command dalam app/Console/Commands)
      */
     protected $commands = [
-        ScrapeJobStreetSource::class,
-        ImportAdzunaJobs::class,
+	ScrapeJobStreetSource::class,
+	ImportRemoteOk::class,
+        ImportJsaJobs::class,
 	ImportTheirStackJobs::class,
 	ImportCareerjetJobs::class,
     ];
@@ -32,28 +34,18 @@ class Kernel extends ConsoleKernel
         // Expire job tiap jam
         $schedule->command('jobs:expire')
             ->hourly();
+	// JSA — jalan setiap hari jam 01:00 WIB
+    $schedule->command('jsa:import --q="" --location="indonesia" --results=1 --limit=5')
+        ->dailyAt('01:00')
+        ->withoutOverlapping();
 
-        // Adzuna import tiap 6 jam pada menit ke-5
-        $schedule->command('adzuna:import', [
-                '--country' => 'us',
-                '--what'    => 'remote OR work from home',
-                '--age'     => 7,
-                '--pages'   => 5,
-            ])
-            ->cron('5 */6 * * *')
-            ->withoutOverlapping()
-            ->onOneServer()
-            ->runInBackground();
+    // TheirStack — jalan setiap hari jam 01:10 WIB
+    $schedule->command('theirstack:import --q= --pages=1 --per-page=5 --avoid=job_id_not')
+        ->dailyAt('01:10')
+	->withoutOverlapping();
 
-        // TheirStack import tiap jam
-        $schedule->command('theirstack:import', [
-                '--page'  => 1,
-                '--limit' => 1,
-            ])
-            ->daily()
-            ->withoutOverlapping()
-            ->onOneServer()
-            ->runInBackground();
+    //remote ok importer
+    $schedule->command('import:remoteok')->everyThirtyMinutes()->withoutOverlapping();
     }
 
     /**
