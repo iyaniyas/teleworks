@@ -15,6 +15,10 @@ use App\Http\Controllers\JobController;
 // Home (listing)
 Route::get('/', [ListingController::class, 'home'])->name('home');
 
+// AJAX endpoint for external jobs (Careerjet fallback) - returns JSON
+Route::get('/ajax/external-jobs', [SearchController::class, 'externalJobsAjax'])
+    ->name('search.external.ajax');
+
 // SEO-friendly route for location-only: /cari/lokasi/{lokasi}
 Route::get('/cari/lokasi/{lokasi}', [SearchController::class, 'slugLocation'])
     ->name('search.slug.location');
@@ -22,8 +26,6 @@ Route::get('/cari/lokasi/{lokasi}', [SearchController::class, 'slugLocation'])
 // SEO-friendly slug route (preferred)
 Route::get('/cari/{kata}/{lokasi?}', [SearchController::class, 'slug'])
     ->name('search.slug');
-
-// Legacy route (form submits here; middleware will redirect to slug when needed)
 
 // Search page
 Route::get('/cari', [SearchController::class, 'index'])->name('search.index')->middleware('lowercase.query');
@@ -45,7 +47,6 @@ Route::middleware('auth')->group(function () {
 // routes statis page
 Route::view('/about', 'about')->name('about');
 Route::view('/privacy', 'privacy')->name('privacy');
-
 
 require __DIR__.'/auth.php';
 

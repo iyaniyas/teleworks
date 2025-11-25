@@ -24,33 +24,13 @@ class SearchController extends Controller
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
-        // generic fallback note: jika DB kosong tapi fallback mengembalikan hasil,
-        // beri keterangan generik tanpa menyebut sumber eksternal.
+        $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
+        $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
+        $external_rendered = ($dbTotal === 0 && $fallbackHasResults);
+
         $fallback_note = null;
         try {
-            $dbTotal = Job::where('status', 'published')
-                ->where(function ($qb) {
-                    $qb->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
-                ->when($qRaw !== '', function ($q) use ($qRaw) {
-                    $q->where(function ($qq) use ($qRaw) {
-                        $qq->where('title', 'like', "%{$qRaw}%")
-                           ->orWhere('company', 'like', "%{$qRaw}%")
-                           ->orWhere('description', 'like', "%{$qRaw}%");
-                    });
-                })
-                ->when($lokasiRaw !== '', function ($q) use ($lokasiRaw) {
-                    $q->where(function ($qq) use ($lokasiRaw) {
-                        $qq->where('location', 'like', "%{$lokasiRaw}%")
-                           ->orWhere('job_location', 'like', "%{$lokasiRaw}%");
-                    });
-                })
-                ->count();
-
-            $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
-
             if ($dbTotal === 0 && $fallbackHasResults) {
-                // set generic note (don't mention Careerjet)
                 if (!empty($qRaw) && !empty($lokasiRaw)) {
                     $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di %s. Berikut hasil dari lokasi lain:', $qRaw, $lokasiRaw);
                 } elseif (!empty($qRaw)) {
@@ -87,13 +67,14 @@ class SearchController extends Controller
         }
 
         return view('cari', [
-            'jobs'      => $jobs,
-            'q'         => mb_strtolower($qRaw),
-            'lokasi'    => mb_strtolower($lokasiRaw),
-            'qRaw'      => $qRaw,
-            'lokasiRaw' => $lokasiRaw,
-            'wfh'       => $wfh ? '1' : '0',
-            'fallback_note' => $fallback_note,
+            'jobs'             => $jobs,
+            'q'                => mb_strtolower($qRaw),
+            'lokasi'           => mb_strtolower($lokasiRaw),
+            'qRaw'             => $qRaw,
+            'lokasiRaw'        => $lokasiRaw,
+            'wfh'              => $wfh ? '1' : '0',
+            'fallback_note'    => $fallback_note,
+            'external_rendered' => $external_rendered,
         ]);
     }
 
@@ -106,23 +87,12 @@ class SearchController extends Controller
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
-        // same generic fallback note logic for slugLocation
+        $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
+        $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
+        $external_rendered = ($dbTotal === 0 && $fallbackHasResults);
+
         $fallback_note = null;
         try {
-            $dbTotal = Job::where('status', 'published')
-                ->where(function ($qb) {
-                    $qb->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
-                ->when($lokasiRaw !== '', function ($q) use ($lokasiRaw) {
-                    $q->where(function ($qq) use ($lokasiRaw) {
-                        $qq->where('location', 'like', "%{$lokasiRaw}%")
-                           ->orWhere('job_location', 'like', "%{$lokasiRaw}%");
-                    });
-                })
-                ->count();
-
-            $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
-
             if ($dbTotal === 0 && $fallbackHasResults) {
                 $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:', $lokasiRaw);
             }
@@ -158,6 +128,7 @@ class SearchController extends Controller
             'lokasiRaw' => $lokasiRaw,
             'wfh' => $wfh ? '1' : '0',
             'fallback_note' => $fallback_note,
+            'external_rendered' => $external_rendered,
         ]);
     }
 
@@ -170,30 +141,12 @@ class SearchController extends Controller
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
-        // generic fallback note
+        $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
+        $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
+        $external_rendered = ($dbTotal === 0 && $fallbackHasResults);
+
         $fallback_note = null;
         try {
-            $dbTotal = Job::where('status', 'published')
-                ->where(function ($qb) {
-                    $qb->whereNull('expires_at')->orWhere('expires_at', '>', now());
-                })
-                ->when($qRaw !== '', function ($q) use ($qRaw) {
-                    $q->where(function ($qq) use ($qRaw) {
-                        $qq->where('title', 'like', "%{$qRaw}%")
-                           ->orWhere('company', 'like', "%{$qRaw}%")
-                           ->orWhere('description', 'like', "%{$qRaw}%");
-                    });
-                })
-                ->when($lokasiRaw !== '', function ($q) use ($lokasiRaw) {
-                    $q->where(function ($qq) use ($lokasiRaw) {
-                        $qq->where('location', 'like', "%{$lokasiRaw}%")
-                           ->orWhere('job_location', 'like', "%{$lokasiRaw}%");
-                    });
-                })
-                ->count();
-
-            $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
-
             if ($dbTotal === 0 && $fallbackHasResults) {
                 if (!empty($qRaw) && !empty($lokasiRaw)) {
                     $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di %s. Berikut hasil dari lokasi lain:', $qRaw, $lokasiRaw);
@@ -241,10 +194,10 @@ class SearchController extends Controller
             'lokasiRaw' => $lokasiRaw,
             'wfh'       => $wfh ? '1' : '0',
             'fallback_note' => $fallback_note,
+            'external_rendered' => $external_rendered,
         ]);
     }
 
-    // performSearch and fallbackCareerjet... (same as previous, unchanged)
     protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 15, Request $request = null)
     {
         $request = $request ?: request();
@@ -289,7 +242,10 @@ class SearchController extends Controller
             return $dbPaginator;
         }
 
-        return $this->fallbackCareerjetSearchWithRetries($qRaw, $lokasiRaw, $page, $perPage, $request);
+        // DB empty -> fallback. server-side fallback will use perPage capped to 20,
+        // and paginator total will be capped to at most 2 pages.
+        $perFallback = min(20, max(1, $perPage));
+        return $this->fallbackCareerjetSearchWithRetries($qRaw, $lokasiRaw, $page, $perFallback, $request);
     }
 
     protected function fallbackCareerjetSearchWithRetries(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
@@ -306,12 +262,19 @@ class SearchController extends Controller
 
     protected function fallbackCareerjetSearchSingle(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
     {
+        // perPage here is already capped by performSearch (<=20)
         $cacheKey = 'careerjet_search:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$perPage}");
         $cacheStore = Cache::store('redis');
 
         Log::debug('fallbackCareerjetSearch called', ['q'=>$q, 'lokasi'=>$lokasi, 'page'=>$page, 'per'=>$perPage]);
 
-        $cached = $cacheStore->get($cacheKey);
+        $cached = null;
+        try {
+            $cached = $cacheStore->get($cacheKey);
+        } catch (\Throwable $e) {
+            Log::warning('fallbackCareerjetSearch: cache get failed: ' . $e->getMessage());
+        }
+
         if (is_array($cached) && !empty($cached)) {
             $rawItems = $cached['items'] ?? [];
             $total = (int) ($cached['total'] ?? count($rawItems));
@@ -332,7 +295,12 @@ class SearchController extends Controller
                 $obj->is_external = true;
                 return $obj;
             });
-            return new LengthAwarePaginator($items, $total, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+
+            // Ensure paginator total is capped to 2 pages
+            $maxPages = 2;
+            $totalCapped = min($total, $perPage * $maxPages);
+
+            return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
         }
 
         $client = new CareerjetClient();
@@ -341,8 +309,8 @@ class SearchController extends Controller
             'location' => $lokasi ?: '',
             'page' => $page,
             'page_size' => $perPage,
-            'user_ip' => $request->ip() ?: '127.0.0.1',
-            'user_agent' => $request->header('User-Agent', 'TeleworksBot/1.0'),
+            'user_ip' => $request->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
+            'user_agent' => $request->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
             'locale_code' => 'id_ID',
             'sort' => 'date',
         ];
@@ -358,7 +326,9 @@ class SearchController extends Controller
         $totalHits = is_numeric($resp['hits'] ?? null) ? (int)$resp['hits'] : count($jobsRaw);
 
         $items = collect();
+        $count = 0;
         foreach ($jobsRaw as $j) {
+            if ($count >= $perPage) break; // ensure cap per page
             $title = trim($j['title'] ?? 'No title');
             $company = $j['company'] ?? ($j['site'] ?? null);
             $location = $j['locations'] ?? ($j['location'] ?? null);
@@ -380,9 +350,14 @@ class SearchController extends Controller
                 'source'=>'careerjet','raw'=>$j,'is_external'=>true
             ];
             $items->push($obj);
+            $count++;
         }
 
-        $paginator = new LengthAwarePaginator($items, $totalHits, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+        // Cap total to at most 2 pages (perPage * 2)
+        $maxPages = 2;
+        $totalCapped = min(is_numeric($totalHits) ? (int)$totalHits : count($jobsRaw), $perPage * $maxPages);
+
+        $paginator = new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
 
         if ($items->count() > 0) {
             try {
@@ -400,7 +375,7 @@ class SearchController extends Controller
                             'raw' => $it->raw,
                         ];
                     })->toArray(),
-                    'total' => $totalHits,
+                    'total' => $totalCapped,
                 ];
                 Cache::store('redis')->put($cacheKey, $cachePayload, now()->addMinutes(30));
                 Log::debug("Careerjet fallback: cached key {$cacheKey}");
@@ -412,6 +387,145 @@ class SearchController extends Controller
         }
 
         return $paginator;
+    }
+
+    /**
+     * AJAX endpoint: ambil hasil eksternal (Careerjet) maksimal 20 job, cache 30 menit.
+     * Response JSON: { items: [...], total: int }
+     */
+    public function externalJobsAjax(Request $request)
+    {
+        $q = trim($request->query('q', ''));
+        $lokasi = trim($request->query('lokasi', ''));
+        $perLimit = 20;
+
+        $cacheKey = 'careerjet_ajax:' . md5("q={$q}|lokasi={$lokasi}|per={$perLimit}");
+        $cache = Cache::store('redis');
+
+        try {
+            $cached = $cache->get($cacheKey);
+        } catch (\Throwable $e) {
+            Log::warning("externalJobsAjax: Redis/cache get failed: " . $e->getMessage());
+            $cached = null;
+        }
+
+        if (is_array($cached) && !empty($cached)) {
+            return response()->json([
+                'items' => $cached['items'],
+                'total' => (int)($cached['total'] ?? count($cached['items'])),
+                'cached' => true,
+            ]);
+        }
+
+        $client = new CareerjetClient();
+        $params = [
+            'keywords' => $q ?: '',
+            'location' => $lokasi ?: '',
+            'page' => 1,
+            'page_size' => $perLimit,
+            'user_ip' => $request->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
+            'user_agent' => $request->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
+            'locale_code' => 'id_ID',
+            'sort' => 'date',
+        ];
+
+        $resp = $client->query($params, config('app.url'), $params['user_agent']);
+
+        if (!is_array($resp) || (isset($resp['__error']) && $resp['__error'])) {
+            Log::warning('externalJobsAjax: Careerjet API error', ['resp' => $resp, 'params' => $params]);
+            return response()->json(['items' => [], 'total' => 0, 'cached' => false]);
+        }
+
+        $jobsRaw = $resp['jobs'] ?? [];
+        $totalHits = is_numeric($resp['hits'] ?? null) ? (int)$resp['hits'] : count($jobsRaw);
+
+        $items = [];
+        $count = 0;
+
+        // dedupe using DB final_url and identifier_value
+        $existingUrls = Job::query()->whereNotNull('final_url')->pluck('final_url')->map(fn($u)=> (string)$u)->filter()->values()->all();
+        $existingIds = Job::query()->whereNotNull('identifier_value')->pluck('identifier_value')->map(fn($v)=> (string)$v)->filter()->values()->all();
+
+        foreach ($jobsRaw as $j) {
+            if ($count >= $perLimit) break;
+
+            $title = trim($j['title'] ?? 'No title');
+            $company = $j['company'] ?? ($j['site'] ?? null);
+            $location = $j['locations'] ?? ($j['location'] ?? null);
+            $applyUrl = $j['apply_url'] ?? ($j['url'] ?? null);
+            $dateRaw = $j['date'] ?? null;
+
+            $isDup = false;
+            if ($applyUrl) {
+                $applyStr = (string)$applyUrl;
+                if (in_array($applyStr, $existingUrls, true) || in_array($applyStr, $existingIds, true)) {
+                    $isDup = true;
+                }
+            }
+            if ($isDup) continue;
+
+            $datePosted = null;
+            if (!empty($dateRaw)) {
+                try { $datePosted = Carbon::parse($dateRaw)->toDateTimeString(); } catch (\Throwable $e) { $datePosted = null; }
+            }
+
+            $items[] = [
+                'title' => $title,
+                'company' => $company,
+                'location' => $location,
+                'apply_url' => $applyUrl,
+                'date_posted' => $datePosted,
+                'raw' => $j,
+            ];
+            $count++;
+        }
+
+        if (!empty($items)) {
+            try {
+                $cache->put($cacheKey, ['items' => $items, 'total' => $totalHits], now()->addMinutes(30));
+                Log::debug('externalJobsAjax: cached key ' . $cacheKey);
+            } catch (\Throwable $e) {
+                Log::warning('externalJobsAjax: failed caching ' . $cacheKey . ' : ' . $e->getMessage());
+            }
+        } else {
+            Log::debug('externalJobsAjax: empty external result', ['params' => $params]);
+        }
+
+        return response()->json([
+            'items' => $items,
+            'total' => count($items),
+            'cached' => false,
+        ]);
+    }
+
+    protected function countDbMatches(string $qRaw = '', string $lokasiRaw = ''): int
+    {
+        try {
+            $qRaw = (string)$qRaw;
+            $lokasiRaw = (string)$lokasiRaw;
+            $query = Job::query()->where('status', 'published')
+                ->where(function ($qb) {
+                    $qb->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                });
+
+            if ($qRaw !== '') {
+                $query->where(function ($qq) use ($qRaw) {
+                    $qq->where('title', 'like', "%{$qRaw}%")
+                       ->orWhere('company', 'like', "%{$qRaw}%")
+                       ->orWhere('description', 'like', "%{$qRaw}%");
+                });
+            }
+            if ($lokasiRaw !== '') {
+                $query->where(function ($qq) use ($lokasiRaw) {
+                    $qq->where('location', 'like', "%{$lokasiRaw}%")
+                       ->orWhere('job_location', 'like', "%{$lokasiRaw}%");
+                });
+            }
+            return (int)$query->count();
+        } catch (\Throwable $e) {
+            Log::warning('countDbMatches failed: ' . $e->getMessage());
+            return 0;
+        }
     }
 }
 

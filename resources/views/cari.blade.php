@@ -1,3 +1,4 @@
+{{-- (File sama seperti sebelumnya, saya hanya tampilkan bagian-bagian lengkap file sehingga bisa langsung replace) --}}
 @extends('layouts.app')
 
 @php
@@ -31,6 +32,9 @@
     'jakarta','surabaya','bandung','medan','semarang',
     'makassar','palembang','tangerang','bekasi','yogyakarta'
   ];
+
+  // external_rendered is provided by controller (bool)
+  $externalRendered = $external_rendered ?? false;
 @endphp
 
 @section('title', trim('Lowongan ' . ($qDisplay ?: 'kerja') . ($lokasiDisplay ? ' di ' . $lokasiDisplay : '')))
@@ -135,6 +139,22 @@
       {{ $jobs->links('pagination::bootstrap-5') }}
     </div>
 
+    {{-- External jobs block (AJAX-loaded) --}}
+    {{-- Only show AJAX block if server did NOT already render external fallback --}}
+    @if(!$externalRendered)
+      <div id="external-jobs-wrapper" class="mt-4" style="display:none;">
+        <div class="card mb-3 p-3 bg-dark text-light border-secondary" id="external-jobs-note" style="display:none;">
+          <div class="small-muted mb-2" id="external-jobs-note-text">Hasil tambahan dari sumber lain:</div>
+        </div>
+
+        <div id="external-jobs-list" class="row g-3"></div>
+
+        <div id="external-jobs-empty" class="card p-3" style="display:none;">
+          <p class="mb-0 muted">Tidak ada hasil tambahan.</p>
+        </div>
+      </div>
+    @endif
+
     {{-- show city quick links if query present OR location-only view --}}
     @if( !empty($qRaw) || (!empty($lokasiRaw) && empty($qRaw)) )
       <div class="mt-3">
@@ -215,6 +235,83 @@
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') safeFocus();
     });
+
+    // ---------- External jobs AJAX loader ----------
+    var wrapper = document.getElementById('external-jobs-wrapper');
+    if (wrapper) {
+      var q = {!! json_encode($qRaw ?? '') !!};
+      var lokasi = {!! json_encode($lokasiRaw ?? '') !!};
+      var url = '{{ url('/ajax/external-jobs') }}' + '?q=' + encodeURIComponent(q) + '&lokasi=' + encodeURIComponent(lokasi);
+
+      var list = document.getElementById('external-jobs-list');
+      var note = document.getElementById('external-jobs-note');
+      var empty = document.getElementById('external-jobs-empty');
+
+      wrapper.style.display = 'block';
+      list.innerHTML = '<div class="col-12"><div class="py-3 text-center small-muted">Memuat hasil tambahan…</div></div>';
+      note.style.display = 'none';
+      empty.style.display = 'none';
+
+      fetch(url, { method: 'GET', credentials: 'same-origin' })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+          list.innerHTML = '';
+          if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+            note.style.display = 'none';
+            empty.style.display = 'block';
+            return;
+          }
+
+          note.style.display = 'block';
+
+          data.items.forEach(function(it) {
+            var title = it.title || 'No title';
+            var company = it.company || '';
+            var location = it.location || '';
+            var apply = it.apply_url || it.url || '#';
+            var datePosted = it.date_posted ? (new Date(it.date_posted)).toLocaleDateString('id-ID') : '';
+
+            var col = document.createElement('div');
+            col.className = 'col-12 col-md-6 col-lg-4';
+
+            var html = ''
+              + '<article class="card h-100 shadow-sm hover-card p-3 border-0 bg-dark text-light">'
+              + '  <div class="d-flex flex-column h-100">'
+              + '    <div class="mb-2">'
+              + '      <a href="' + encodeURI(apply) + '" target="_blank" rel="nofollow noopener" class="h6 result-title text-decoration-none text-light">'
+              +            escapeHtml(title)
+              + '      </a>'
+              + '    </div>'
+              + '    <div class="small-muted mb-2">'
+              +            (company ? escapeHtml(company) : '') + (company && location ? ' — ' : '') + (location ? escapeHtml(location) : '')
+              + '    </div>'
+              + '    <div class="flex-grow-1 small-muted mb-2"></div>'
+              + '    <div class="d-flex justify-content-between align-items-center mt-auto small-muted">'
+              + '      <div>' + (datePosted ? escapeHtml(datePosted) : '') + '</div>'
+              + '    </div>'
+              + '  </div>'
+              + '</article>';
+
+            col.innerHTML = html;
+            list.appendChild(col);
+          });
+        })
+        .catch(function(err) {
+          console.warn('external-jobs fetch error', err);
+          list.innerHTML = '';
+          empty.style.display = 'block';
+        });
+    }
+
+    function escapeHtml(unsafe) {
+      return ('' + unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+    // ---------- end AJAX loader ----------
 })();
 </script>
 @endpush
