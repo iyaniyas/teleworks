@@ -1,105 +1,132 @@
 @extends('layouts.app')
 
-@section('title', 'Pencarian Terbaru')
+@section('title', 'Telusuri pencarian terbaru')
 
 @section('content')
-  <div class="mb-4">
-    <h1 class="h4 text-light">Pencarian Terbaru</h1>
-    <div style="color:#ddd;">Daftar pencarian terbaru dari pengguna Teleworks</div>
-  </div>
+@php
+use Illuminate\Support\Str;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\URL;
 
-  <div class="card p-3 mb-3 bg-dark border-secondary">
-    <form method="GET" action="{{ route('public.searchlogs') }}" class="row g-2 align-items-center">
-      <div class="col-md-6">
-        <input type="search" name="q" value="{{ $q }}" placeholder="Filter kata kunci..." class="form-control form-control-dark" />
+// Ambil semua log
+$logs = \App\Models\SearchLog::orderByDesc('created_at')->get();
+
+// --- KATA KUNCI ---
+$keywords = $logs->pluck('q')
+    ->map(fn($v) => trim((string)$v))
+    ->filter()
+    ->unique()
+    ->values()
+    ->all();
+
+// --- LOKASI ---
+$locations = $logs->pluck('params')
+    ->map(function($p){
+        if (!$p) return null;
+        $arr = json_decode($p, true);
+        return trim($arr['lokasi'] ?? '');
+    })
+    ->filter()
+    ->unique()
+    ->values()
+    ->all();
+
+// --- KOMBINASI (q + lokasi) ---
+$combos = [];
+foreach ($logs as $log) {
+    $q  = trim((string)($log->q ?? ''));
+    $arr = $log->params ? json_decode($log->params, true) : [];
+    $lok = trim((string)($arr['lokasi'] ?? ''));
+
+    if ($q !== '' && $lok !== '') {
+        $combos[] = "{$q} | {$lok}";
+    }
+}
+$combos = collect($combos)->unique()->values()->all();
+
+// Jadi 4 kolom data
+$col1 = $keywords;
+$col2 = $locations;
+$col3 = $combos;
+$col4 = []; // bisa diisi kombinasi lain jika dibutuhkan
+
+
+// Flatten semua kolom agar dapat dipagination 100 item
+$all = array_merge(
+    array_map(fn($v)=>['type'=>'q','value'=>$v], $col1),
+    array_map(fn($v)=>['type'=>'lokasi','value'=>$v], $col2),
+    array_map(fn($v)=>['type'=>'combo','value'=>$v], $col3)
+);
+
+$perPage = 100;
+$currentPage = max(1, (int) request()->query('page', 1));
+$total = count($all);
+$offset = ($currentPage - 1) * $perPage;
+
+$pageItems = array_slice($all, $offset, $perPage);
+
+$paginator = new LengthAwarePaginator($pageItems, $total, $perPage, $currentPage, [
+    'path' => URL::current(),
+    'query' => request()->query(),
+]);
+
+// Bagi 4 kolom untuk tampilan
+$chunks = array_chunk($pageItems, ceil(count($pageItems)/4));
+@endphp
+
+
+<div class="mb-4">
+  <h1 class="h4 text-light">Telusuri pencarian terbaru</h1>
+  <div style="color:#ddd;">Kata kunci, lokasi, dan kombinasi pencarian pengguna.</div>
+</div>
+
+<div class="card p-3 bg-dark border-secondary">
+  <div class="row">
+
+    @for($i=0; $i<4; $i++)
+      <div class="col-12 col-md-3">
+        <ul class="list-unstyled">
+          @if(isset($chunks[$i]))
+            @foreach($chunks[$i] as $item)
+              @php
+                $type = $item['type'];
+                $value = $item['value'];
+
+                // build link
+                if ($type === 'q') {
+                    $url = url('/cari/'.Str::slug($value,'-'));
+                } elseif ($type === 'lokasi') {
+                    $url = url('/cari/lokasi/'.Str::slug($value,'-'));
+                } else { // combo "q | lokasi"
+                    [$q,$lok] = array_map('trim', explode('|',$value));
+                    $url = url('/cari/'.Str::slug($q,'-').'/'.Str::slug($lok,'-'));
+                }
+              @endphp
+
+              <li class="mb-2">
+                <a href="{{ $url }}" class="text-light text-decoration-none">
+                  {{ $value }}
+                </a>
+              </li>
+            @endforeach
+          @endif
+        </ul>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-outline-light btn-sm w-100">Filter</button>
-      </div>
-    </form>
+    @endfor
+
   </div>
 
-  <div class="card p-2 bg-dark border-secondary">
-    <div class="table-responsive">
-      <table class="table table-dark table-hover mb-0">
-        <thead class="table-secondary text-dark">
-          <tr>
-            <th style="width:1%">#</th>
-            <th>Kata kunci</th>
-            <th style="width:22%">Filter</th>
-            <th style="width:12%">Hasil</th>
-            <th style="width:18%">Waktu</th>
-          </tr>
-        </thead>
-        <tbody>
-
-          @forelse ($logs as $log)
-            @php
-              $filters = $log->filters ? json_decode($log->filters, true) : [];
-              $qVal = trim($log->q ?? '');
-              $locVal = trim($filters['lokasi'] ?? '');
-
-              // build slug versions
-              $qSlug = $qVal ? \Illuminate\Support\Str::slug($qVal, '-') : null;
-              $locSlug = $locVal ? \Illuminate\Support\Str::slug($locVal, '-') : null;
-
-              // build link
-              if ($qSlug && $locSlug) {
-                  $url = url('/cari/'.$qSlug.'/'.$locSlug);
-              } elseif ($qSlug) {
-                  $url = url('/cari/'.$qSlug);
-              } elseif ($locSlug) {
-                  $url = url('/cari/lokasi/'.$locSlug);
-              } else {
-                  $url = null;
-              }
-            @endphp
-
-            <tr>
-              <td>{{ $loop->iteration + (($logs->currentPage()-1) * $logs->perPage()) }}</td>
-
-              <td>
-                @if($url)
-                  <a href="{{ $url }}" class="text-light text-decoration-none">
-                    <strong>{{ $qVal ?: '(kosong)' }}</strong>
-                  </a>
-                @else
-                  <span style="color:#eee;"><strong>(kosong)</strong></span>
-                @endif
-              </td>
-
-              <td style="color:#ccc;">
-                @if(!empty($filters))
-                  @foreach($filters as $k => $v)
-                    <div><strong>{{ $k }}</strong>: {{ is_scalar($v) ? $v : json_encode($v) }}</div>
-                  @endforeach
-                @else
-                  -
-                @endif
-              </td>
-
-              <td style="color:#eee;">{{ $log->results_count }}</td>
-
-              <td style="color:#ddd;">
-                {{ \Carbon\Carbon::parse($log->created_at)->timezone('Asia/Jakarta')->format('d M Y H:i') }}
-              </td>
-            </tr>
-
-          @empty
-            <tr>
-              <td colspan="5" class="text-center py-4" style="color:#ddd;">
-                Belum ada data pencarian.
-              </td>
-            </tr>
-          @endforelse
-
-        </tbody>
-      </table>
-    </div>
+  <div class="mt-3 text-end">
+    {{ $paginator->links('pagination::bootstrap-5') }}
   </div>
+</div>
 
-  <div class="mt-3">
-    {{ $logs->links('pagination::bootstrap-5') }}
-  </div>
 @endsection
+
+@push('styles')
+<style>
+  a { color:#e6eef8; }
+  a:hover { color:#fff; text-decoration:underline; }
+</style>
+@endpush
 

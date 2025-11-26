@@ -8,6 +8,7 @@ use App\Models\SearchLog;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Pagination\LengthAwarePaginator;
 use App\Services\CareerjetClient;
 use App\Services\CareerjetParser;
@@ -45,22 +46,34 @@ class SearchController extends Controller
             Log::debug('fallback_note check failed: ' . $e->getMessage());
         }
 
+        // Attempt to save search log — but block-save if profanity detected.
         try {
             if (class_exists(SearchLog::class)) {
-                SearchLog::create([
-                    'q' => Str::limit($qRaw, 255),
-                    'filters' => json_encode([
-                        'lokasi' => $lokasiRaw,
-                        'wfh'    => $wfh ? 1 : 0,
-                    ]),
-                    'results_count' => method_exists($jobs, 'total')
-                        ? $jobs->total()
-                        : (is_countable($jobs) ? count($jobs) : 0),
-                    'ip'         => $request->ip(),
-                    'user_agent' => substr($request->header('User-Agent', ''), 0, 1000),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                $hasProfanity = $this->containsProfanity($qRaw) || $this->containsProfanity($lokasiRaw);
+
+                if ($hasProfanity) {
+                    // Block saving the raw search. Log the event (no raw words saved).
+                    Log::info('Blocked profane search (not saved)', [
+                        'q_present' => $qRaw !== '' ? true : false,
+                        'lokasi_present' => $lokasiRaw !== '' ? true : false,
+                        'ip' => $request->ip(),
+                        'ua' => substr($request->header('User-Agent', ''), 0, 255),
+                    ]);
+                } else {
+                    SearchLog::create([
+                        'q' => Str::limit($qRaw, 255),
+                        'params' => json_encode([
+                            'lokasi' => $lokasiRaw,
+                            'wfh'    => $wfh ? 1 : 0,
+                        ]),
+                        'result_count' => method_exists($jobs, 'total')
+                            ? (int) $jobs->total()
+                            : (is_countable($jobs) ? count($jobs) : 0),
+                        'user_ip' => $request->ip(),
+                        'user_agent' => substr($request->header('User-Agent', ''), 0, 255),
+                        // timestamps handled by Eloquent
+                    ]);
+                }
             }
         } catch (\Throwable $e) {
             Log::warning('SearchLog error: ' . $e->getMessage());
@@ -78,12 +91,25 @@ class SearchController extends Controller
         ]);
     }
 
+    /**
+     * /cari/lokasi/{lokasi}
+     */
     public function slugLocation($lokasi, Request $request = null)
     {
         $lokasiRaw = trim(str_replace('-', ' ', $lokasi));
         $qRaw = '';
         $wfh = $request ? $request->boolean('wfh') : false;
         $perPage = 15;
+
+        // Build cleaned slug for lokasi (map profanity => jakarta)
+        $cleanLokSlug = $this->cleanAndSlug($lokasiRaw, 'lokasi');
+        $origLokParam = Str::slug($lokasi, '-');
+
+        if ($cleanLokSlug !== $origLokParam) {
+            // redirect to cleaned /cari URL (map profanity -> jakarta)
+            $target = $cleanLokSlug ? url('/cari/lokasi/' . $cleanLokSlug) : url('/cari');
+            return redirect()->to($target)->setStatusCode(302);
+        }
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
@@ -106,15 +132,23 @@ class SearchController extends Controller
 
         try {
             if (class_exists(\App\Models\SearchLog::class)) {
-                \App\Models\SearchLog::create([
-                    'q' => '',
-                    'filters' => json_encode(['lokasi' => $lokasiRaw, 'wfh' => $wfh ? 1 : 0]),
-                    'results_count' => method_exists($jobs, 'total') ? $jobs->total() : 0,
-                    'ip' => request()->ip(),
-                    'user_agent' => substr(request()->header('User-Agent', ''), 0, 1000),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                $hasProfanity = $this->containsProfanity($lokasiRaw);
+
+                if ($hasProfanity) {
+                    Log::info('Blocked profane search (slugLocation not saved)', [
+                        'lokasi_present' => $lokasiRaw !== '' ? true : false,
+                        'ip' => request()->ip(),
+                        'ua' => substr(request()->header('User-Agent', ''), 0, 255),
+                    ]);
+                } else {
+                    \App\Models\SearchLog::create([
+                        'q' => '',
+                        'params' => json_encode(['lokasi' => $lokasiRaw, 'wfh' => $wfh ? 1 : 0]),
+                        'result_count' => method_exists($jobs, 'total') ? (int)$jobs->total() : 0,
+                        'user_ip' => request()->ip(),
+                        'user_agent' => substr(request()->header('User-Agent', ''), 0, 255),
+                    ]);
+                }
             }
         } catch (\Throwable $e) {
             Log::warning('SearchLog error (slugLocation): ' . $e->getMessage());
@@ -132,12 +166,38 @@ class SearchController extends Controller
         ]);
     }
 
+    /**
+     * /cari/{kata}/{lokasi?}
+     * If kata or lokasi contain profanity, redirect to cleaned /cari URL.
+     */
     public function slug($kata, $lokasi = null, Request $request = null)
     {
         $qRaw = trim(str_replace('-', ' ', $kata));
         $lokasiRaw = $lokasi ? trim(str_replace('-', ' ', $lokasi)) : '';
         $wfh = $request ? $request->boolean('wfh') : false;
         $perPage = 15;
+
+        // Clean and build slugs — profanity mapping:
+        // q -> sales, lokasi -> jakarta when profanity detected
+        $cleanQSlug = $this->cleanAndSlug($qRaw, 'q');
+        $cleanLokSlug = $this->cleanAndSlug($lokasiRaw, 'lokasi');
+
+        $origQSlug = Str::slug($kata, '-');
+        $origLokParam = $lokasi ? Str::slug($lokasi, '-') : null;
+
+        // If original slug differs from cleaned slug, redirect to cleaned /cari URL
+        if ($cleanQSlug !== $origQSlug || ($lokasi && $cleanLokSlug !== $origLokParam)) {
+            if ($cleanQSlug && $cleanLokSlug) {
+                $target = url('/cari/' . $cleanQSlug . '/' . $cleanLokSlug);
+            } elseif ($cleanQSlug) {
+                $target = url('/cari/' . $cleanQSlug);
+            } elseif ($cleanLokSlug) {
+                $target = url('/cari/lokasi/' . $cleanLokSlug);
+            } else {
+                $target = url('/cari');
+            }
+            return redirect()->to($target)->setStatusCode(302);
+        }
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
@@ -163,24 +223,34 @@ class SearchController extends Controller
         }
 
         if (method_exists($jobs, 'withPath')) {
+            // use original route params (they are already clean here due to redirect above if needed)
             $base = url('/cari/' . $kata . ($lokasi ? '/' . $lokasi : ''));
             $jobs->withPath($base);
         }
 
         try {
             if (class_exists(SearchLog::class)) {
-                SearchLog::create([
-                    'q' => Str::limit($qRaw, 255),
-                    'filters' => json_encode([
-                        'lokasi' => $lokasiRaw,
-                        'wfh'    => $wfh ? 1 : 0,
-                    ]),
-                    'results_count' => method_exists($jobs, 'total') ? $jobs->total() : 0,
-                    'ip' => request()->ip(),
-                    'user_agent' => substr(request()->header('User-Agent', ''), 0, 1000),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                $hasProfanity = $this->containsProfanity($qRaw) || $this->containsProfanity($lokasiRaw);
+
+                if ($hasProfanity) {
+                    Log::info('Blocked profane search (slug not saved)', [
+                        'q_present' => $qRaw !== '' ? true : false,
+                        'lokasi_present' => $lokasiRaw !== '' ? true : false,
+                        'ip' => request()->ip(),
+                        'ua' => substr(request()->header('User-Agent', ''), 0, 255),
+                    ]);
+                } else {
+                    SearchLog::create([
+                        'q' => Str::limit($qRaw, 255),
+                        'params' => json_encode([
+                            'lokasi' => $lokasiRaw,
+                            'wfh'    => $wfh ? 1 : 0,
+                        ]),
+                        'result_count' => method_exists($jobs, 'total') ? (int)$jobs->total() : 0,
+                        'user_ip' => request()->ip(),
+                        'user_agent' => substr(request()->header('User-Agent', ''), 0, 255),
+                    ]);
+                }
             }
         } catch (\Throwable $e) {
             Log::warning('SearchLog error (slug): ' . $e->getMessage());
@@ -526,6 +596,111 @@ class SearchController extends Controller
             Log::warning('countDbMatches failed: ' . $e->getMessage());
             return 0;
         }
+    }
+
+    /* ============================
+       Profanity helpers (block-save + clean slug mapping)
+       ============================ */
+
+    /**
+     * Load profanity list from storage/profanity.json (cached per request).
+     *
+     * @return array
+     */
+    private function loadProfanityList(): array
+    {
+        static $list = null;
+        if ($list !== null) return $list;
+
+        $path = storage_path('app/profanity.json');
+        if (!File::exists($path)) {
+            $list = [];
+            return $list;
+        }
+
+        try {
+            $json = File::get($path);
+            $arr = json_decode($json, true) ?: [];
+        } catch (\Throwable $e) {
+            Log::warning('Failed to load profanity list: ' . $e->getMessage());
+            $arr = [];
+        }
+
+        $list = array_values(array_filter(array_map(function($w) {
+            if (!is_string($w)) return null;
+            $v = trim(mb_strtolower($w, 'UTF-8'));
+            return $v === '' ? null : $v;
+        }, $arr)));
+
+        return $list;
+    }
+
+    /**
+     * Normalize input for profanity checking: lowercase, simple leet mapping,
+     * remove punctuation and collapse spaces.
+     *
+     * @param string $s
+     * @return string
+     */
+    private function normalizeForProfanity(string $s): string
+    {
+        $s = mb_strtolower($s, 'UTF-8');
+        // simple leet substitutions
+        $s = strtr($s, ['0'=>'o','1'=>'i','3'=>'e','@'=>'a','4'=>'a','$'=>'s','5'=>'s','7'=>'t']);
+        // remove non letter/number/space
+        $s = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $s);
+        $s = preg_replace('/\s+/', ' ', $s);
+        return trim($s);
+    }
+
+    /**
+     * Check whether given text contains any profane word/phrase.
+     *
+     * @param string|null $text
+     * @return bool
+     */
+    private function containsProfanity(?string $text): bool
+    {
+        if (!$text) return false;
+        $textNorm = ' ' . $this->normalizeForProfanity($text) . ' ';
+        $words = $this->loadProfanityList();
+        if (empty($words)) return false;
+
+        foreach ($words as $bad) {
+            if ($bad === '') continue;
+            // word boundary match (unicode, case-insensitive)
+            $pattern = '/\b' . preg_quote($bad, '/') . '\b/iu';
+            if (preg_match($pattern, $textNorm)) {
+                return true;
+            }
+            // fallback: strpos on normalized text (for multiword phrases)
+            if (mb_strpos($textNorm, ' ' . $bad . ' ') !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Clean and slugify text. If profanity detected, map to defaults:
+     * - type 'q'      => 'sales'
+     * - type 'lokasi' => 'jakarta'
+     *
+     * @param string|null $text
+     * @param string $type 'q' or 'lokasi'
+     * @return string
+     */
+    private function cleanAndSlug(?string $text, string $type = 'q'): string
+    {
+        if (!$text) return '';
+
+        // if contains profanity -> map to preset
+        if ($this->containsProfanity($text)) {
+            return $type === 'lokasi' ? 'jakarta' : 'sales';
+        }
+
+        // safe: produce normal slug from original text
+        return Str::slug($text, '-');
     }
 }
 
