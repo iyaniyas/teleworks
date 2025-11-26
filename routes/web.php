@@ -19,6 +19,11 @@ Route::get('/', [ListingController::class, 'home'])->name('home');
 Route::get('/ajax/external-jobs', [SearchController::class, 'externalJobsAjax'])
     ->name('search.external.ajax');
 
+// PUBLIC: daftar pencarian terbaru
+Route::get('/pencarian-terbaru', [\App\Http\Controllers\PublicSearchLogController::class, 'index'])
+    ->name('public.searchlogs');
+
+
 // SEO-friendly route for location-only: /cari/lokasi/{lokasi}
 Route::get('/cari/lokasi/{lokasi}', [SearchController::class, 'slugLocation'])
     ->name('search.slug.location');

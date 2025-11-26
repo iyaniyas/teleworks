@@ -5,17 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   @php
-    // gunakan $timestamp jika disediakan oleh view (mis. waktu publish job)
-    // format sebaiknya sudah diberikan oleh controller (contoh: 'd M Y, H:i WIB')
     $providedTimestamp = $timestamp ?? null;
 
-    $baseTitle = trim($__env->yieldContent('title')) ?: 'Teleworks — Job Remote WFH';
-    $metaDesc = trim($__env->yieldContent('meta_description')) ?: 'Temukan lowongan kerja remote, WFH, dan freelance terbaru di Teleworks.';
+    $baseTitle = trim($__env->yieldContent('title')) ?: 'Teleworks';
+    $metaDesc = trim($__env->yieldContent('meta_description')) ?: 'Mencari kerja dari jarak jauh, langsung dari rumah.';
   @endphp
 
   <title>{{ $baseTitle }}@if($providedTimestamp) — {{ $providedTimestamp }}@endif</title>
 
-  <meta name="description" content="{{ $metaDesc }}@if($providedTimestamp) (Diperbarui {{ $providedTimestamp }})@endif" />
+  <meta name="description" content="{{ e($metaDesc) }}@if($providedTimestamp) (Diperbarui {{ $providedTimestamp }})@endif" />
   <meta name="robots" content="index, follow" />
 
   <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/Inter-Variable.woff2') }}" crossorigin>
@@ -32,7 +30,27 @@
       -webkit-text-fill-color: transparent;
     }
   </style>
+
+  {{-- Favicon --}}
+  <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+  <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
+
+  {{-- Open Graph --}}
+  <meta property="og:title" content="{{ e($baseTitle) }}">
+  <meta property="og:description" content="{{ e($metaDesc) }}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ url()->current() }}">
+  <meta property="og:site_name" content="Teleworks">
+  <meta property="og:image" content="{{ asset('og-image.jpg') }}">
+  <meta property="og:image:alt" content="Teleworks — Lowongan Kerja Remote & WFH">
+
+  {{-- Twitter Card --}}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ e($baseTitle) }}">
+  <meta name="twitter:description" content="{{ e($metaDesc) }}">
+  <meta name="twitter:image" content="{{ asset('og-image.jpg') }}">
 </head>
+
 <body class="bg-[#0b1220] text-[#e6eef8] min-h-screen flex flex-col">
   <div class="container mx-auto px-4 py-4 flex-1">
     {{-- HEADER --}}
@@ -40,7 +58,7 @@
       <a href="{{ route('home') }}"
          class="text-3xl font-bold tracking-wide tw-gradient-logo text-uppercase"
          style="letter-spacing: 1px;">
-         TELEWORKS
+         TELE WORKS
       </a>
 
       <nav class="flex items-center space-x-4">
@@ -62,14 +80,16 @@
     <div class="container mx-auto px-4 py-6">
       <div class="md:flex md:justify-between md:items-start">
         <div class="mb-4 md:mb-0">
-          <a href="/"><span class="text-xl font-bold tw-gradient-logo">TELEWORKS</span></a>
-          <p class="text-light text-sm mt-2">Temukan pekerjaan remote, WFH, dan freelance terbaru. © {{ date('Y') }}</p>
+          <a href="/"><span class="text-xl font-bold tw-gradient-logo">TELE WORKS</span></a>
+          <p class="text-light text-sm mt-2">Cari kerja jarak jauh, langsung dari rumah. © {{ date('Y') }}</p>
         </div>
 
         <div class="grid grid-cols-2 gap-4 text-sm text-light">
           <div>
             <div class="font-medium text-light mb-1">Menu</div>
             <a href="{{ route('search.index') }}" class="block py-0.5 text-light">Semua Lowongan</a>
+	    <a href="{{ route('public.searchlogs') }}" class="block py-0.5 text-light">Pencarian Terbaru</a>
+	    <a href="{{ url('/') }}" class="block py-0.5 text-light">Home</a>
           </div>
           <div>
             <div class="font-medium text-light mb-1">Tentang</div>

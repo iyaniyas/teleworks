@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Teleworks.id – #1 Lowongan Kerja WFH Part Time')
-@section('meta_description', 'Temukan lowongan kerja remote terbaik di Teleworks.id! Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya. Mulai karier fleksibel Anda hari ini!')
+@section('title', 'Teleworks.id – #1 Cari Kerja dari Rumah')
+@section('meta_description', 'Cari kerja jarak jauh, langsung dari rumah. Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya. Mulai karier fleksibel Anda hari ini!')
 
 @php
   // timestamp untuk home: Tampilkan bulan dan tahun (contoh: "Nov 2025")
@@ -17,7 +17,7 @@
       Teleworks.id
     </h1>
     <p class="mt-3 max-w-3xl mx-auto text-sm md:text-base tw-muted" style="color:#cfdcec;">
-      Temukan lowongan kerja remote terbaik di Teleworks.id! Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya.
+      Cari kerja jarak jauh, langsung dari rumah.
     </p>
   </div>
 
