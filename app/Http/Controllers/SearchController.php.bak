@@ -268,9 +268,6 @@ class SearchController extends Controller
         ]);
     }
 
-    /**
-     * performSearch — merges DB + Careerjet into unified paginator.
-     */
     protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 15, Request $request = null)
     {
         $request = $request ?: request();
@@ -307,210 +304,18 @@ class SearchController extends Controller
 
         $query->orderByDesc('date_posted')->orderByDesc('created_at');
 
-        // DB paginator for the requested page (fast)
         $dbPaginator = $query->paginate($perPage);
-        $dbItems = collect($dbPaginator->items())->map(function ($job) {
-            $datePosted = $job->date_posted ?? $job->created_at ?? null;
-            try {
-                $dateParsed = $datePosted ? Carbon::parse($datePosted) : null;
-            } catch (\Throwable $e) {
-                $dateParsed = null;
-            }
-            return (object)[
-                'id' => $job->id,
-                'title' => $job->title,
-                'company' => $job->company,
-                'location' => $job->location ?? $job->job_location ?? null,
-                'apply_url' => url('/loker/'.$job->id),
-                'url' => url('/loker/'.$job->id),
-                'description' => null,
-                'date_posted' => $dateParsed,
-                'source' => 'db',
-                'raw' => $job,
-                'is_external' => false,
-                'dedupe_key' => $job->final_url ? (string)$job->final_url : ($job->identifier_value ? (string)$job->identifier_value : null),
-            ];
-        });
 
-        $dbTotal = method_exists($dbPaginator, 'total') ? (int)$dbPaginator->total() : $dbItems->count();
+        $dbTotal = method_exists($dbPaginator, 'total') ? (int)$dbPaginator->total() : $dbPaginator->count();
 
-        // Always fetch external Careerjet items (cached). We'll fetch up to 100 items to allow merging/dedupe.
-        $externalFetchLimit = 100;
-        $careerjet = $this->fetchCareerjetResultsCached($qRaw, $lokasiRaw, 1, $externalFetchLimit);
-
-        $externalItems = collect($careerjet['items'] ?? []);
-        $externalTotalRaw = (int)($careerjet['total'] ?? $externalItems->count());
-
-        // Build dedupe set from DB (final_url + identifier_value)
-        $existingUrls = Job::query()->whereNotNull('final_url')->pluck('final_url')->map(fn($u)=> (string)$u)->filter()->values()->all();
-        $existingIds = Job::query()->whereNotNull('identifier_value')->pluck('identifier_value')->map(fn($v)=> (string)$v)->filter()->values()->all();
-        $existingSet = array_merge($existingUrls, $existingIds);
-
-        // Map external items into same object shape and dedupe
-        $mappedExternal = collect();
-        $seenExternalKeys = [];
-
-        foreach ($externalItems as $ext) {
-            $dedupeKey = null;
-            if (!empty($ext['raw']['apply_url'])) {
-                $dedupeKey = (string)$ext['raw']['apply_url'];
-            } elseif (!empty($ext['raw']['url'])) {
-                $dedupeKey = (string)$ext['raw']['url'];
-            } elseif (!empty($ext['raw']['id'])) {
-                $dedupeKey = (string)$ext['raw']['id'];
-            } elseif (!empty($ext['url'])) {
-                $dedupeKey = (string)$ext['url'];
-            }
-
-            if ($dedupeKey && (in_array($dedupeKey, $existingSet, true) || in_array($dedupeKey, $seenExternalKeys, true))) {
-                continue;
-            }
-            if ($dedupeKey) $seenExternalKeys[] = $dedupeKey;
-
-            $dateParsed = null;
-            if (!empty($ext['date_posted'])) {
-                try { $dateParsed = Carbon::parse($ext['date_posted']); } catch (\Throwable $e) { $dateParsed = null; }
-            }
-
-            $mappedExternal->push((object)[
-                'id' => $ext['raw']['id'] ?? null,
-                'title' => $ext['title'] ?? 'No title',
-                'company' => $ext['company'] ?? null,
-                'location' => $ext['location'] ?? null,
-                'apply_url' => $ext['apply_url'] ?? $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
-                'url' => $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
-                'description' => isset($ext['description']) ? strip_tags($ext['description']) : null,
-                'date_posted' => $dateParsed,
-                'source' => $ext['source'] ?? 'careerjet',
-                'raw' => $ext['raw'] ?? null,
-                'is_external' => true,
-                'dedupe_key' => $dedupeKey,
-            ]);
-        }
-
-        // Merge DB items and external items and sort by date_posted desc (nulls last)
-        $merged = $dbItems->concat($mappedExternal)->sortByDesc(function ($it) {
-            return $it->date_posted ? $it->date_posted->getTimestamp() : 0;
-        })->values();
-
-        // Compute combined total — cap to maxPagesCap pages
-        $maxPagesCap = 5; // <= 5 pages total (as requested)
-        $combinedTotalEstimate = $dbTotal + $externalTotalRaw;
-        $totalCapped = min($combinedTotalEstimate, $perPage * $maxPagesCap);
-
-        // Now produce a paginator page slice from $merged
-        $start = ($page - 1) * $perPage;
-        $sliced = $merged->slice($start, $perPage)->values();
-
-        // If slice is empty but DB had items on other pages, return dbPaginator to keep consistency.
-        if ($sliced->isEmpty() && $dbTotal > 0) {
+        if ($dbTotal > 0) {
             return $dbPaginator;
         }
 
-        // Build LengthAwarePaginator with merged slice
-        $paginator = new LengthAwarePaginator($sliced, $totalCapped, $perPage, $page, [
-            'path' => $request->url(),
-            'query' => $request->query(),
-        ]);
-
-        return $paginator;
-    }
-
-    /**
-     * Fetch Careerjet results with cache. Returns ['items'=>[], 'total'=>int]
-     */
-    protected function fetchCareerjetResultsCached(string $q, string $lokasi, int $page = 1, int $pageSize = 20): array
-    {
-        $cacheKey = 'careerjet_search:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$pageSize}");
-        $cacheStore = Cache::store('redis');
-
-        try {
-            $cached = $cacheStore->get($cacheKey);
-        } catch (\Throwable $e) {
-            Log::warning('fetchCareerjetResultsCached: cache get failed: ' . $e->getMessage());
-            $cached = null;
-        }
-
-        if (is_array($cached) && !empty($cached)) {
-            return $cached;
-        }
-
-        // Query Careerjet (returns normalized structure)
-        $result = $this->fetchCareerjetResults($q, $lokasi, $page, $pageSize);
-
-        if (!empty($result['items'])) {
-            try {
-                $cacheStore->put($cacheKey, $result, now()->addMinutes(30));
-            } catch (\Throwable $e) {
-                Log::warning('fetchCareerjetResultsCached: failed caching: ' . $e->getMessage());
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Direct Careerjet call (stateless). Returns normalized array.
-     * We request up to $pageSize items (we will call with pageSize up to 100).
-     */
-    protected function fetchCareerjetResults(string $q, string $lokasi, int $page = 1, int $pageSize = 20): array
-    {
-        $client = new CareerjetClient();
-        $params = [
-            'keywords' => $q ?: '',
-            'location' => $lokasi ?: '',
-            'page' => $page,
-            'page_size' => $pageSize,
-            'user_ip' => request()->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
-            'user_agent' => request()->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
-            'locale_code' => 'id_ID',
-            'sort' => 'date',
-        ];
-
-        $resp = $client->query($params, config('app.url'), $params['user_agent']);
-
-        if (!is_array($resp) || (isset($resp['__error']) && $resp['__error'])) {
-            Log::warning("Careerjet API ERROR", ['resp' => $resp, 'params'=>$params]);
-            return ['items' => [], 'total' => 0];
-        }
-
-        $jobsRaw = $resp['jobs'] ?? [];
-        $totalHits = is_numeric($resp['hits'] ?? null) ? (int)$resp['hits'] : count($jobsRaw);
-
-        $items = [];
-        $count = 0;
-        foreach ($jobsRaw as $j) {
-            if ($count >= $pageSize) break;
-            $title = trim($j['title'] ?? 'No title');
-            $company = $j['company'] ?? ($j['site'] ?? null);
-            $location = $j['locations'] ?? ($j['location'] ?? null);
-            $applyUrl = $j['apply_url'] ?? ($j['url'] ?? null);
-            $dateRaw = $j['date'] ?? null;
-            $desc = '';
-            if (!empty($j['description'])) {
-                $desc = CareerjetParser::sanitizeHtml($j['description']);
-            } elseif (!empty($j['description_excerpt'])) {
-                $desc = CareerjetParser::sanitizeHtml('<p>' . htmlentities($j['description_excerpt']) . '</p>');
-            }
-            $datePosted = null;
-            if (!empty($dateRaw)) {
-                try { $datePosted = Carbon::parse($dateRaw)->toDateTimeString(); } catch (\Throwable $e) { $datePosted = null; }
-            }
-            $items[] = [
-                'title' => $title,
-                'company' => $company,
-                'location' => $location,
-                'apply_url' => $applyUrl,
-                'url' => $applyUrl,
-                'description' => $desc,
-                'date_posted' => $datePosted,
-                'source' => 'careerjet',
-                'raw' => $j,
-            ];
-            $count++;
-        }
-
-        return ['items' => $items, 'total' => $totalHits];
+        // DB empty -> fallback. server-side fallback will use perPage capped to 20,
+        // and paginator total will be capped to at most 2 pages.
+        $perFallback = min(20, max(1, $perPage));
+        return $this->fallbackCareerjetSearchWithRetries($qRaw, $lokasiRaw, $page, $perFallback, $request);
     }
 
     protected function fallbackCareerjetSearchWithRetries(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
@@ -527,18 +332,17 @@ class SearchController extends Controller
 
     protected function fallbackCareerjetSearchSingle(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
     {
-        // We want Careerjet fallback to be able to provide up to 100 items (so 5 pages may be served).
-        $perFetch = min(100, max(1, $perPage * 5)); // try to fetch up to 100 (or perPage*5), whichever smaller
-        $cacheKey = 'careerjet_fallback:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$perFetch}");
+        // perPage here is already capped by performSearch (<=20)
+        $cacheKey = 'careerjet_search:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$perPage}");
         $cacheStore = Cache::store('redis');
 
-        Log::debug('fallbackCareerjetSearchSingle called', ['q'=>$q, 'lokasi'=>$lokasi, 'page'=>$page, 'per'=>$perFetch]);
+        Log::debug('fallbackCareerjetSearch called', ['q'=>$q, 'lokasi'=>$lokasi, 'page'=>$page, 'per'=>$perPage]);
 
         $cached = null;
         try {
             $cached = $cacheStore->get($cacheKey);
         } catch (\Throwable $e) {
-            Log::warning('fallbackCareerjetSearchSingle: cache get failed: ' . $e->getMessage());
+            Log::warning('fallbackCareerjetSearch: cache get failed: ' . $e->getMessage());
         }
 
         if (is_array($cached) && !empty($cached)) {
@@ -562,20 +366,19 @@ class SearchController extends Controller
                 return $obj;
             });
 
-            // Cap paginator total to at most maxPages (5)
-            $maxPages = 5;
+            // Ensure paginator total is capped to 2 pages
+            $maxPages = 2;
             $totalCapped = min($total, $perPage * $maxPages);
 
             return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
         }
 
-        // Call Careerjet client requesting up to $perFetch items (server-side)
         $client = new CareerjetClient();
         $params = [
             'keywords' => $q ?: '',
             'location' => $lokasi ?: '',
-            'page' => 1, // we'll request first page but ask for many items via page_size
-            'page_size' => $perFetch,
+            'page' => $page,
+            'page_size' => $perPage,
             'user_ip' => $request->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
             'user_agent' => $request->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
             'locale_code' => 'id_ID',
@@ -595,7 +398,7 @@ class SearchController extends Controller
         $items = collect();
         $count = 0;
         foreach ($jobsRaw as $j) {
-            if ($count >= $perFetch) break;
+            if ($count >= $perPage) break; // ensure cap per page
             $title = trim($j['title'] ?? 'No title');
             $company = $j['company'] ?? ($j['site'] ?? null);
             $location = $j['locations'] ?? ($j['location'] ?? null);
@@ -620,8 +423,8 @@ class SearchController extends Controller
             $count++;
         }
 
-        // Cap total to at most maxPages (5)
-        $maxPages = 5;
+        // Cap total to at most 2 pages (perPage * 2)
+        $maxPages = 2;
         $totalCapped = min(is_numeric($totalHits) ? (int)$totalHits : count($jobsRaw), $perPage * $maxPages);
 
         $paginator = new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
@@ -654,6 +457,115 @@ class SearchController extends Controller
         }
 
         return $paginator;
+    }
+
+    /**
+     * AJAX endpoint: ambil hasil eksternal (Careerjet) maksimal 20 job, cache 30 menit.
+     * Response JSON: { items: [...], total: int }
+     */
+    public function externalJobsAjax(Request $request)
+    {
+        $q = trim($request->query('q', ''));
+        $lokasi = trim($request->query('lokasi', ''));
+        $perLimit = 20;
+
+        $cacheKey = 'careerjet_ajax:' . md5("q={$q}|lokasi={$lokasi}|per={$perLimit}");
+        $cache = Cache::store('redis');
+
+        try {
+            $cached = $cache->get($cacheKey);
+        } catch (\Throwable $e) {
+            Log::warning("externalJobsAjax: Redis/cache get failed: " . $e->getMessage());
+            $cached = null;
+        }
+
+        if (is_array($cached) && !empty($cached)) {
+            return response()->json([
+                'items' => $cached['items'],
+                'total' => (int)($cached['total'] ?? count($cached['items'])),
+                'cached' => true,
+            ]);
+        }
+
+        $client = new CareerjetClient();
+        $params = [
+            'keywords' => $q ?: '',
+            'location' => $lokasi ?: '',
+            'page' => 1,
+            'page_size' => $perLimit,
+            'user_ip' => $request->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
+            'user_agent' => $request->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
+            'locale_code' => 'id_ID',
+            'sort' => 'date',
+        ];
+
+        $resp = $client->query($params, config('app.url'), $params['user_agent']);
+
+        if (!is_array($resp) || (isset($resp['__error']) && $resp['__error'])) {
+            Log::warning('externalJobsAjax: Careerjet API error', ['resp' => $resp, 'params' => $params]);
+            return response()->json(['items' => [], 'total' => 0, 'cached' => false]);
+        }
+
+        $jobsRaw = $resp['jobs'] ?? [];
+        $totalHits = is_numeric($resp['hits'] ?? null) ? (int)$resp['hits'] : count($jobsRaw);
+
+        $items = [];
+        $count = 0;
+
+        // dedupe using DB final_url and identifier_value
+        $existingUrls = Job::query()->whereNotNull('final_url')->pluck('final_url')->map(fn($u)=> (string)$u)->filter()->values()->all();
+        $existingIds = Job::query()->whereNotNull('identifier_value')->pluck('identifier_value')->map(fn($v)=> (string)$v)->filter()->values()->all();
+
+        foreach ($jobsRaw as $j) {
+            if ($count >= $perLimit) break;
+
+            $title = trim($j['title'] ?? 'No title');
+            $company = $j['company'] ?? ($j['site'] ?? null);
+            $location = $j['locations'] ?? ($j['location'] ?? null);
+            $applyUrl = $j['apply_url'] ?? ($j['url'] ?? null);
+            $dateRaw = $j['date'] ?? null;
+
+            $isDup = false;
+            if ($applyUrl) {
+                $applyStr = (string)$applyUrl;
+                if (in_array($applyStr, $existingUrls, true) || in_array($applyStr, $existingIds, true)) {
+                    $isDup = true;
+                }
+            }
+            if ($isDup) continue;
+
+            $datePosted = null;
+            if (!empty($dateRaw)) {
+                try { $datePosted = Carbon::parse($dateRaw)->toDateTimeString(); } catch (\Throwable $e) { $datePosted = null; }
+            }
+
+            $items[] = [
+                'title' => $title,
+                'company' => $company,
+                'location' => $location,
+                'apply_url' => $applyUrl,
+                'date_posted' => $datePosted,
+                'raw' => $j,
+            ];
+            $count++;
+        }
+
+        if (!empty($items)) {
+            try {
+                $cache->put($cacheKey, ['items' => $items, 'total' => $totalHits], now()->addMinutes(30));
+                Log::debug('externalJobsAjax: cached key ' . $cacheKey);
+            } catch (\Throwable $e) {
+                Log::warning('externalJobsAjax: failed caching ' . $cacheKey . ' : ' . $e->getMessage());
+            }
+        } else {
+            Log::debug('externalJobsAjax: empty external result', ['params' => $params]);
+        }
+
+        return response()->json([
+            'items' => $items,
+            'total' => count($items),
+            'cached' => false,
+        ]);
     }
 
     protected function countDbMatches(string $qRaw = '', string $lokasiRaw = ''): int
@@ -690,6 +602,11 @@ class SearchController extends Controller
        Profanity helpers (block-save + clean slug mapping)
        ============================ */
 
+    /**
+     * Load profanity list from storage/profanity.json (cached per request).
+     *
+     * @return array
+     */
     private function loadProfanityList(): array
     {
         static $list = null;
@@ -718,15 +635,30 @@ class SearchController extends Controller
         return $list;
     }
 
+    /**
+     * Normalize input for profanity checking: lowercase, simple leet mapping,
+     * remove punctuation and collapse spaces.
+     *
+     * @param string $s
+     * @return string
+     */
     private function normalizeForProfanity(string $s): string
     {
         $s = mb_strtolower($s, 'UTF-8');
+        // simple leet substitutions
         $s = strtr($s, ['0'=>'o','1'=>'i','3'=>'e','@'=>'a','4'=>'a','$'=>'s','5'=>'s','7'=>'t']);
+        // remove non letter/number/space
         $s = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $s);
         $s = preg_replace('/\s+/', ' ', $s);
         return trim($s);
     }
 
+    /**
+     * Check whether given text contains any profane word/phrase.
+     *
+     * @param string|null $text
+     * @return bool
+     */
     private function containsProfanity(?string $text): bool
     {
         if (!$text) return false;
@@ -736,10 +668,12 @@ class SearchController extends Controller
 
         foreach ($words as $bad) {
             if ($bad === '') continue;
+            // word boundary match (unicode, case-insensitive)
             $pattern = '/\b' . preg_quote($bad, '/') . '\b/iu';
             if (preg_match($pattern, $textNorm)) {
                 return true;
             }
+            // fallback: strpos on normalized text (for multiword phrases)
             if (mb_strpos($textNorm, ' ' . $bad . ' ') !== false) {
                 return true;
             }
@@ -747,14 +681,25 @@ class SearchController extends Controller
         return false;
     }
 
+    /**
+     * Clean and slugify text. If profanity detected, map to defaults:
+     * - type 'q'      => 'sales'
+     * - type 'lokasi' => 'jakarta'
+     *
+     * @param string|null $text
+     * @param string $type 'q' or 'lokasi'
+     * @return string
+     */
     private function cleanAndSlug(?string $text, string $type = 'q'): string
     {
         if (!$text) return '';
 
+        // if contains profanity -> map to preset
         if ($this->containsProfanity($text)) {
             return $type === 'lokasi' ? 'jakarta' : 'sales';
         }
 
+        // safe: produce normal slug from original text
         return Str::slug($text, '-');
     }
 }
