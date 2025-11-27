@@ -68,12 +68,12 @@
     <form method="GET" action="{{ route('search.index') }}" class="row g-2 align-items-center">
       <div class="col-md-5">
         <input id="search-q" type="search" name="q" value="{{ old('q', $qRaw ?? request('q')) }}"
-               class="form-control form-control-dark" placeholder="Posisi, perusahaan, kata kunci..." autocomplete="off" />
+               class="form-control form-control-dark" placeholder="Tulis kata kunci" autocomplete="off" />
       </div>
 
       <div class="col-md-5">
         <input id="search-lokasi" type="text" name="lokasi" value="{{ old('lokasi', $lokasiRaw ?? request('lokasi')) }}"
-               class="form-control form-control-dark" placeholder="Lokasi (kota/kabupaten)" />
+               class="form-control form-control-dark" placeholder="Tulis lokasi tekan Enter" />
       </div>
 
       <div class="col-md-2 text-end">

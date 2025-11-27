@@ -61,7 +61,6 @@
   <meta name="twitter:description" content="{{ e($metaDesc) }}">
   <meta name="twitter:image" content="{{ asset('og-image.jpg') }}">
   <meta name="google-adsense-account" content="ca-pub-6893727055927225">
-</head>
 
 <body class="bg-[#0b1220] text-[#e6eef8] min-h-screen flex flex-col">
   <div class="container mx-auto px-4 py-4 flex-1">

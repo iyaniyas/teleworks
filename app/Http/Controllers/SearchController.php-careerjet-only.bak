@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Http;
 use App\Services\CareerjetClient;
 use App\Services\CareerjetParser;
 use Carbon\Carbon;
@@ -22,7 +21,7 @@ class SearchController extends Controller
         $qRaw      = trim($request->query('q', ''));
         $lokasiRaw = trim($request->query('lokasi', ''));
         $wfh       = $request->boolean('wfh');
-        $perPage   = 21; // default per page
+        $perPage   = 15;
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
@@ -100,7 +99,7 @@ class SearchController extends Controller
         $lokasiRaw = trim(str_replace('-', ' ', $lokasi));
         $qRaw = '';
         $wfh = $request ? $request->boolean('wfh') : false;
-        $perPage = 21;
+        $perPage = 15;
 
         // Build cleaned slug for lokasi (map profanity => jakarta)
         $cleanLokSlug = $this->cleanAndSlug($lokasiRaw, 'lokasi');
@@ -176,7 +175,7 @@ class SearchController extends Controller
         $qRaw = trim(str_replace('-', ' ', $kata));
         $lokasiRaw = $lokasi ? trim(str_replace('-', ' ', $lokasi)) : '';
         $wfh = $request ? $request->boolean('wfh') : false;
-        $perPage = 21;
+        $perPage = 15;
 
         // Clean and build slugs — profanity mapping:
         // q -> sales, lokasi -> jakarta when profanity detected
@@ -271,12 +270,8 @@ class SearchController extends Controller
 
     /**
      * performSearch — merges DB + Careerjet into unified paginator.
-     * If DB empty => fallback to Careerjet (and Jooble if Careerjet empty).
-     *
-     * Additional behavior: if mapped Careerjet external results (after dedupe) < 10,
-     * fetch Jooble and top-up external results up to 10 (or until Jooble exhausted).
      */
-    protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 21, Request $request = null)
+    protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 15, Request $request = null)
     {
         $request = $request ?: request();
         $page = max(1, (int) $request->query('page', 1));
@@ -339,24 +334,19 @@ class SearchController extends Controller
 
         $dbTotal = method_exists($dbPaginator, 'total') ? (int)$dbPaginator->total() : $dbItems->count();
 
-        // If DB has no results -> run fallback which tries careerjet then jooble
-        if ($dbTotal === 0) {
-            return $this->fallbackCareerjetSearchWithRetries($qRaw, $lokasiRaw, $page, $perPage, $request);
-        }
-
-        // DB has results -> enrich by fetching Careerjet to merge (dedupe + sort)
-        $maxPagesCap = 5; // <= 5 pages total
-        $externalFetchLimit = $perPage * $maxPagesCap; // fetch up to perPage * maxPages (21 * 5 = 105)
+        // Always fetch external Careerjet items (cached). We'll fetch up to 100 items to allow merging/dedupe.
+        $externalFetchLimit = 100;
         $careerjet = $this->fetchCareerjetResultsCached($qRaw, $lokasiRaw, 1, $externalFetchLimit);
+
         $externalItems = collect($careerjet['items'] ?? []);
         $externalTotalRaw = (int)($careerjet['total'] ?? $externalItems->count());
 
         // Build dedupe set from DB (final_url + identifier_value)
-        $existingUrls = Job::query()->whereNotNull('final_url')->pluck('final_url')->map(function($u){ return (string)$u; })->filter()->values()->all();
-        $existingIds = Job::query()->whereNotNull('identifier_value')->pluck('identifier_value')->map(function($v){ return (string)$v; })->filter()->values()->all();
+        $existingUrls = Job::query()->whereNotNull('final_url')->pluck('final_url')->map(fn($u)=> (string)$u)->filter()->values()->all();
+        $existingIds = Job::query()->whereNotNull('identifier_value')->pluck('identifier_value')->map(fn($v)=> (string)$v)->filter()->values()->all();
         $existingSet = array_merge($existingUrls, $existingIds);
 
-        // Map external items into same object shape and dedupe careerjet items first
+        // Map external items into same object shape and dedupe
         $mappedExternal = collect();
         $seenExternalKeys = [];
 
@@ -398,69 +388,14 @@ class SearchController extends Controller
             ]);
         }
 
-        // If careerjet external results (after dedupe) are fewer than 10 -> top-up from Jooble
-        $minExternalTarget = 10;
-        if ($mappedExternal->count() < $minExternalTarget) {
-            try {
-                // fetch Jooble candidates (we'll ask up to externalFetchLimit so we have room)
-                $joobleResult = $this->fetchJoobleResultsCached($qRaw, $lokasiRaw, 1, $externalFetchLimit);
-                $joobleItems = collect($joobleResult['items'] ?? []);
-                foreach ($joobleItems as $j) {
-                    if ($mappedExternal->count() >= $minExternalTarget) break;
-
-                    // compute dedupe key for jooble item
-                    $dedupeKey = null;
-                    if (!empty($j['raw']['link'])) {
-                        $dedupeKey = (string)$j['raw']['link'];
-                    } elseif (!empty($j['raw']['url'])) {
-                        $dedupeKey = (string)$j['raw']['url'];
-                    } elseif (!empty($j['raw']['id'])) {
-                        $dedupeKey = (string)$j['raw']['id'];
-                    } elseif (!empty($j['url'])) {
-                        $dedupeKey = (string)$j['url'];
-                    } elseif (!empty($j['apply_url'])) {
-                        $dedupeKey = (string)$j['apply_url'];
-                    }
-
-                    if ($dedupeKey && (in_array($dedupeKey, $existingSet, true) || in_array($dedupeKey, $seenExternalKeys, true))) {
-                        continue;
-                    }
-                    if ($dedupeKey) $seenExternalKeys[] = $dedupeKey;
-
-                    $dateParsed = null;
-                    if (!empty($j['date_posted'])) {
-                        try { $dateParsed = Carbon::parse($j['date_posted']); } catch (\Throwable $e) { $dateParsed = null; }
-                    }
-
-                    $mappedExternal->push((object)[
-                        'id' => $j['raw']['id'] ?? null,
-                        'title' => $j['title'] ?? 'No title',
-                        'company' => $j['company'] ?? null,
-                        'location' => $j['location'] ?? null,
-                        'apply_url' => $j['apply_url'] ?? $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
-                        'url' => $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
-                        'description' => isset($j['description']) ? strip_tags($j['description']) : null,
-                        'date_posted' => $dateParsed,
-                        'source' => $j['source'] ?? 'jooble',
-                        'raw' => $j['raw'] ?? null,
-                        'is_external' => true,
-                        'dedupe_key' => $dedupeKey,
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Top-up Jooble failed: ' . $e->getMessage());
-            }
-        }
-
         // Merge DB items and external items and sort by date_posted desc (nulls last)
         $merged = $dbItems->concat($mappedExternal)->sortByDesc(function ($it) {
             return $it->date_posted ? $it->date_posted->getTimestamp() : 0;
         })->values();
 
         // Compute combined total — cap to maxPagesCap pages
+        $maxPagesCap = 5; // <= 5 pages total (as requested)
         $combinedTotalEstimate = $dbTotal + $externalTotalRaw;
-        // note: if we topped up from Jooble, $externalTotalRaw may not reflect the final merged external count,
-        // but we keep a conservative cap based on estimate and max pages.
         $totalCapped = min($combinedTotalEstimate, $perPage * $maxPagesCap);
 
         // Now produce a paginator page slice from $merged
@@ -516,7 +451,7 @@ class SearchController extends Controller
 
     /**
      * Direct Careerjet call (stateless). Returns normalized array.
-     * We request up to $pageSize items (we will call with pageSize up to perPage*maxPages).
+     * We request up to $pageSize items (we will call with pageSize up to 100).
      */
     protected function fetchCareerjetResults(string $q, string $lokasi, int $page = 1, int $pageSize = 20): array
     {
@@ -578,10 +513,6 @@ class SearchController extends Controller
         return ['items' => $items, 'total' => $totalHits];
     }
 
-    /**
-     * Try Careerjet (multiple location guesses). If all Careerjet tries empty -> fallback to Jooble.
-     * This method returns a LengthAwarePaginator.
-     */
     protected function fallbackCareerjetSearchWithRetries(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
     {
         $tries = [$lokasi, '', 'Indonesia'];
@@ -591,47 +522,13 @@ class SearchController extends Controller
             if ($total > 0) return $p;
         }
 
-        // Careerjet gave nothing -> try Jooble as last resort
-        $maxPages = 5;
-        $fetchLimit = max(1, $perPage * $maxPages); // fetch up to perPage * maxPages (21 * 5 = 105)
-        $joobleResult = $this->fetchJoobleResultsCached($q, $lokasi, 1, $fetchLimit);
-
-        $rawItems = $joobleResult['items'] ?? [];
-        $totalHits = (int)($joobleResult['total'] ?? count($rawItems));
-
-        if (empty($rawItems)) {
-            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
-        }
-
-        // Map to objects
-        $items = collect($rawItems)->map(function ($it) {
-            $dateParsed = null;
-            if (!empty($it['date_posted'])) {
-                try { $dateParsed = Carbon::parse($it['date_posted']); } catch (\Throwable $e) { $dateParsed = null; }
-            }
-            return (object)[
-                'title' => $it['title'] ?? 'No title',
-                'company' => $it['company'] ?? null,
-                'location' => $it['location'] ?? null,
-                'apply_url' => $it['apply_url'] ?? $it['url'] ?? null,
-                'url' => $it['url'] ?? $it['apply_url'] ?? null,
-                'description' => $it['description'] ?? null,
-                'date_posted' => $dateParsed,
-                'source' => 'jooble',
-                'raw' => $it['raw'] ?? null,
-                'is_external' => true,
-            ];
-        });
-
-        $totalCapped = min($totalHits, $perPage * $maxPages);
-
-        return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+        return new LengthAwarePaginator(collect([]), 0, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
     }
 
     protected function fallbackCareerjetSearchSingle(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
     {
-        // We want Careerjet fallback to be able to provide up to perPage * maxPages items (21 * 5 = 105).
-        $perFetch = max(1, $perPage * 5);
+        // We want Careerjet fallback to be able to provide up to 100 items (so 5 pages may be served).
+        $perFetch = min(100, max(1, $perPage * 5)); // try to fetch up to 100 (or perPage*5), whichever smaller
         $cacheKey = 'careerjet_fallback:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$perFetch}");
         $cacheStore = Cache::store('redis');
 
@@ -757,119 +654,6 @@ class SearchController extends Controller
         }
 
         return $paginator;
-    }
-
-    /**
-     * Jooble fetch + cache helpers
-     */
-    protected function fetchJoobleResultsCached(string $q, string $lokasi, int $page = 1, int $pageSize = 20): array
-    {
-        $cacheKey = 'jooble_search:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$pageSize}");
-        $cache = Cache::store('redis');
-
-        try {
-            $cached = $cache->get($cacheKey);
-        } catch (\Throwable $e) {
-            Log::warning('fetchJoobleResultsCached: redis get failed: ' . $e->getMessage());
-            $cached = null;
-        }
-
-        if (is_array($cached) && !empty($cached)) {
-            return $cached;
-        }
-
-        $result = $this->fetchJoobleResults($q, $lokasi, $page, $pageSize);
-
-        if (!empty($result['items'])) {
-            try {
-                $cache->put($cacheKey, $result, now()->addMinutes(30));
-            } catch (\Throwable $e) {
-                Log::warning('fetchJoobleResultsCached: failed caching: ' . $e->getMessage());
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Direct Jooble call (stateless). Returns normalized array: ['items'=>[], 'total'=>int]
-     * Uses POST https://jooble.org/api/{apiKey}
-     */
-    protected function fetchJoobleResults(string $q, string $lokasi, int $page = 1, int $pageSize = 20): array
-    {
-        $apiKey = env('JOOBLE_API_KEY', null);
-        if (empty($apiKey)) {
-            Log::warning('Jooble API key not configured (JOOBLE_API_KEY). Aborting external fetch.');
-            return ['items' => [], 'total' => 0];
-        }
-
-        $endpoint = "https://jooble.org/api/{$apiKey}";
-
-        // Use provided lokasi; if empty, use 'Indonesia'
-        $locForApi = trim($lokasi) !== '' ? $lokasi : 'Indonesia';
-
-        $payload = [
-            'keywords'     => $q ?: '',
-            'location'     => $locForApi,
-            'radius'       => '80',
-            'page'         => (string)$page,
-            'ResultOnPage' => (string)$pageSize,
-            'SearchMode'   => '0',
-            'companysearch'=> 'false',
-        ];
-
-        try {
-            $res = Http::timeout(12)->acceptJson()->post($endpoint, $payload);
-        } catch (\Throwable $e) {
-            Log::warning('fetchJoobleResults: Jooble API request failed: ' . $e->getMessage(), ['q'=>$q,'lokasi'=>$lokasi]);
-            return ['items' => [], 'total' => 0];
-        }
-
-        if (!$res->ok()) {
-            Log::warning('fetchJoobleResults: Jooble API non-200: ' . $res->status(), ['q'=>$q,'lokasi'=>$lokasi]);
-            return ['items' => [], 'total' => 0];
-        }
-
-        $resp = $res->json();
-        if (!is_array($resp) || empty($resp)) {
-            return ['items' => [], 'total' => 0];
-        }
-
-        $jobsRaw = $resp['jobs'] ?? [];
-        $totalHits = is_numeric($resp['totalCount'] ?? null) ? (int)$resp['totalCount'] : count($jobsRaw);
-
-        $items = [];
-        $count = 0;
-        foreach ($jobsRaw as $j) {
-            if ($count >= $pageSize) break;
-
-            $title = trim($j['title'] ?? $j['position'] ?? 'No title');
-            $company = $j['company'] ?? null;
-            $location = $j['location'] ?? ($j['locations'] ?? null);
-            $applyUrl = $j['link'] ?? ($j['url'] ?? null);
-            $dateRaw = $j['updated'] ?? ($j['date'] ?? null);
-            $snippet = $j['snippet'] ?? null;
-
-            $datePosted = null;
-            if (!empty($dateRaw)) {
-                try { $datePosted = Carbon::parse($dateRaw)->toDateTimeString(); } catch (\Throwable $e) { $datePosted = null; }
-            }
-
-            $items[] = [
-                'title' => $title,
-                'company' => $company,
-                'location' => $location,
-                'apply_url' => $applyUrl,
-                'url' => $applyUrl,
-                'description' => $snippet ? strip_tags($snippet) : null,
-                'date_posted' => $datePosted,
-                'source' => 'jooble',
-                'raw' => $j,
-            ];
-            $count++;
-        }
-
-        return ['items' => $items, 'total' => $totalHits];
     }
 
     protected function countDbMatches(string $qRaw = '', string $lokasiRaw = ''): int
