@@ -45,14 +45,43 @@
   {{-- PREPARE DATA --}}
   @php
     use Illuminate\Support\Str;
+    use Illuminate\Support\Facades\DB;
 
-    // keywords
-    $terms = collect([
-      'admin','admin online','cs','customer service','admin chat',
-      'data entry','freelance','part time','full time','kerja dari rumah',
-      'remote job indonesia','content writer','copywriter','designer','digital marketing',
-      'social media','virtual assistant','frontend','backend','fullstack'
-    ])->slice(0,20)->values();
+    /**
+     * Ambil 20 kata kunci terbaru dari tabel search_logs (kolom `q`).
+     * Logika:
+     *  - Ambil record terbaru (urut desc berdasarkan id - jika ada created_at, bisa diganti)
+     *  - Ambil nilai q, lower-case + trim
+     *  - Buang nilai kosong, ambil unique, ambil 20 teratas
+     *
+     * Catatan: idealnya query ini dilakukan di Controller, tapi saya taruh di view sesuai permintaan.
+     */
+    $terms = collect(
+      DB::table('search_logs')
+        ->whereNotNull('q')
+        ->where('q', '!=', '')
+        ->orderByDesc('id') // ubah ke orderByDesc('created_at') jika kolom created_at tersedia dan lebih akurat
+        ->limit(200) // ambil lebih banyak dulu lalu unique di PHP untuk menjaga ordering terbaru per kata unik
+        ->pluck('q')
+    )
+    ->map(function($t) {
+      // normalisasi: trim & lowercase
+      return trim(mb_strtolower($t));
+    })
+    ->filter()       // buang kosong
+    ->unique()       // unique
+    ->values()
+    ->slice(0, 20);  // ambil 20 kata kunci terbaru
+
+    // jika tidak ada kata kunci dari db, fallback ke daftar default (opsional)
+    if ($terms->isEmpty()) {
+      $terms = collect([
+        'admin','admin online','cs','customer service','admin chat',
+        'data entry','freelance','part time','full time','kerja dari rumah',
+        'remote job indonesia','content writer','copywriter','designer','digital marketing',
+        'social media','virtual assistant','frontend','backend','fullstack'
+      ])->slice(0,20)->values();
+    }
 
     // cities: ambil 20, bagi 2 kolom, 10 per kolom
     $cities = collect([
@@ -75,7 +104,7 @@
 
     {{-- LEFT CARD: Kata Kunci --}}
     <div class="tw-card p-4">
-      <h2 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kata Kunci WFH</h2>
+      <h2 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kata Kunci Terbaru</h2>
 
       <div class="grid grid-cols-2 gap-x-6">
         <ul class="list-links space-y-2">
@@ -102,7 +131,7 @@
 
     {{-- RIGHT CARD: Kota Pencarian (2 kolom, 10 per kolom) --}}
     <div class="tw-card p-4">
-      <h2 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Kota Pencarian</h2>
+      <h2 class="text-sm font-semibold mb-3" style="color:#cfe6ff;">Loker di Kota Besar Indonesia</h2>
 
       <div class="grid grid-cols-2 gap-x-6">
         <ul class="list-links space-y-2">

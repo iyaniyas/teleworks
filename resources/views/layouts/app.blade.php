@@ -11,7 +11,7 @@
     $metaDesc = trim($__env->yieldContent('meta_description')) ?: 'Mencari kerja dari jarak jauh, langsung dari rumah.';
   @endphp
 
-  <title>{{ $baseTitle }}@if($providedTimestamp) — {{ $providedTimestamp }}@endif</title>
+  <title>{{ $baseTitle }}@if($providedTimestamp) {{ $providedTimestamp }}@endif</title>
 
   <meta name="description" content="{{ e($metaDesc) }}@if($providedTimestamp) (Diperbarui {{ $providedTimestamp }})@endif" />
   <meta name="robots" content="index, follow" />
@@ -28,6 +28,17 @@
       background: linear-gradient(90deg, #ffffff, #c9c9c9);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+    }
+
+    /* Hilangkan underline semua link header & footer */
+    header a,
+    footer a {
+      text-decoration: none !important;
+    }
+
+    header a:hover,
+    footer a:hover {
+      text-decoration: none !important;
     }
   </style>
 
@@ -49,6 +60,7 @@
   <meta name="twitter:title" content="{{ e($baseTitle) }}">
   <meta name="twitter:description" content="{{ e($metaDesc) }}">
   <meta name="twitter:image" content="{{ asset('og-image.jpg') }}">
+  <meta name="google-adsense-account" content="ca-pub-6893727055927225">
 </head>
 
 <body class="bg-[#0b1220] text-[#e6eef8] min-h-screen flex flex-col">
@@ -114,7 +126,6 @@
 
   gtag('config', 'G-1Z77NN195L');
 </script>
-
 
   </footer>
 
