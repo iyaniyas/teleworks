@@ -14,7 +14,10 @@ class Kernel extends HttpKernel
      * @var array<int, class-string|string>
      */
     // di dalam class Kernel
-     protected $routeMiddleware = [
+	protected $routeMiddleware = [
+    'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+    'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+    'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
     'lowercase.query' => \App\Http\Middleware\LowercaseQueryValuesSafe::class,
     ];
 

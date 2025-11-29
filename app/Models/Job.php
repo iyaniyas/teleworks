@@ -97,5 +97,11 @@ class Job extends Model
         return $query->where('status', 'published')
                      ->where('expires_at', '>', now());
     }
+
+    public function company()
+{
+    return $this->belongsTo(\App\Models\Company::class);
+}
+
 }
 

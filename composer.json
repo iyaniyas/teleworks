@@ -14,6 +14,7 @@
         "mews/purifier": "^3.4",
         "predis/predis": "^3.3",
         "spatie/browsershot": "^5.0",
+        "spatie/laravel-permission": "^6.23",
         "symfony/css-selector": "^7.3",
         "symfony/dom-crawler": "^7.3"
     },

@@ -214,5 +214,46 @@ class JobController extends Controller
         // Return view with job, generated JSON-LD, related jobs, and timestamp
         return view('jobs.show', compact('job', 'jobPostingJsonLd', 'relatedJobs', 'timestamp'));
     }
+
+    /**
+ * Show the edit form for a job.
+ */
+public function edit($id)
+{
+    // ambil job (sama cara show)
+    $job = Job::where('id', $id)->firstOrFail();
+
+    // Authorize: memanggil JobPolicy->update()
+    $this->authorize('update', $job);
+
+    // return view edit (buat view nanti jika belum ada)
+    return view('jobs.edit', compact('job'));
+}
+
+/**
+ * Update the given job.
+ */
+public function update(Request $request, $id)
+{
+    $job = Job::where('id', $id)->firstOrFail();
+
+    // Authorization check
+    $this->authorize('update', $job);
+
+    // simple validation — sesuaikan field yang ada di model Job
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'location' => 'nullable|string|max:255',
+        'base_salary_min' => 'nullable|numeric',
+        'base_salary_max' => 'nullable|numeric',
+    ]);
+
+    // update model
+    $job->update($validated);
+
+    return redirect()->route('jobs.show', $job->id)->with('success', 'Job berhasil diperbarui.');
+}
+
 }
 

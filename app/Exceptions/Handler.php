@@ -1,9 +1,10 @@
-<?php
+<?php 
 
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use Spatie\Permission\Exceptions\UnauthorizedException;
 
 class Handler extends ExceptionHandler
 {
@@ -26,5 +27,12 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+
+        // ⛔ Jika user tidak punya role/permission
+        $this->renderable(function (UnauthorizedException $e, $request) {
+            return redirect('/')
+                ->with('error', 'Anda tidak memiliki akses untuk halaman tersebut.');
+        });
     }
 }
+

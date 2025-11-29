@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
+use Spatie\Permission\Models\Role;
 
 class RegisteredUserController extends Controller
 {
@@ -40,7 +41,25 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-        ]);
+	]);
+
+	// assign default role
+	 // assign role (spatie)
+    if (method_exists($user, 'assignRole')) {
+        $user->assignRole($request->role);
+    }
+
+    event(new Registered($user));
+
+    auth()->login($user);
+
+    // if company, redirect to company creation/onboarding
+    if ($request->role === 'company') {
+        return redirect()->route('companies.create')->with('info','Silakan lengkapi profil perusahaan Anda.');
+    }
+
+    // default: pencari kerja goes to dashboard/home
+    return redirect()->intended(route('dashboard'));
 
         event(new Registered($user));
 

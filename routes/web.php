@@ -5,12 +5,71 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ListingController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\JobController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\JobApplicationController;
+use App\Http\Controllers\Seeker\DashboardController as SeekerDashboardController;
+use App\Http\Controllers\Seeker\ProfileController as SeekerProfileController;
+use App\Http\Controllers\Seeker\ApplicationController as SeekerApplicationController;
+use App\Http\Controllers\Seeker\SavedController as SeekerSavedController;
 
 /*
 |--------------------------------------------------------------------------
 | Web Routes
 |--------------------------------------------------------------------------
-*/
+ */
+//application
+// Apply (user must be authenticated)
+// Semua halaman *Pencari Kerja* hanya untuk role job_seeker
+Route::middleware(['auth','role:job_seeker'])->group(function(){
+    // Seeker dashboard
+    Route::get('/seeker/dashboard', [SeekerDashboardController::class, 'index'])->name('seeker.dashboard');
+
+    // profile
+    Route::get('/seeker/profile', [SeekerProfileController::class, 'edit'])->name('seeker.profile.edit');
+    Route::patch('/seeker/profile', [SeekerProfileController::class, 'update'])->name('seeker.profile.update');
+
+    // applications
+    Route::get('/seeker/applications', [SeekerApplicationController::class, 'index'])->name('seeker.applications.index');
+    Route::post('/seeker/applications/{id}/withdraw', [SeekerApplicationController::class, 'withdraw'])->name('seeker.applications.withdraw');
+
+    // saved/bookmark
+    Route::get('/seeker/saved', [SeekerSavedController::class, 'index'])->name('seeker.saved.index');
+    Route::post('/jobs/{id}/bookmark', [SeekerSavedController::class, 'toggle'])->name('jobs.bookmark');
+	
+	Route::post('/loker/{id}/apply', [JobApplicationController::class, 'apply'])->name('jobs.apply');
+});
+// Employer: view applications & change status (company or admin)
+Route::middleware(['auth','role:company|admin'])->group(function() {
+    Route::get('/employer/applications', [JobApplicationController::class, 'indexForEmployer'])->name('employer.applications');
+    Route::post('/employer/applications/{id}/status', [JobApplicationController::class, 'changeStatus'])->name('employer.applications.status');
+    Route::get('/employer/applications/{id}/resume', [JobApplicationController::class, 'downloadResume'])->name('employer.applications.resume');
+});
+
+//company
+Route::middleware('auth')->group(function () {
+    Route::get('/company/create', [CompanyController::class, 'create'])->name('companies.create');
+    Route::post('/company', [CompanyController::class, 'store'])->name('companies.store');
+});
+
+Route::get('/company/{slug}', [CompanyController::class, 'show'])->name('companies.show');
+
+//edit jobs
+Route::middleware('auth')->group(function () {
+    Route::get('/loker/{id}/edit', [JobController::class, 'edit'])->name('jobs.edit');
+    Route::patch('/loker/{id}', [JobController::class, 'update'])->name('jobs.update');
+});
+
+
+// route hanya untuk company
+Route::middleware(['auth','role:company'])->group(function(){
+    Route::get('/employer/dashboard', [\App\Http\Controllers\Employer\DashboardController::class, 'index'])->name('employer.dashboard');
+});
+
+// route hanya untuk admin
+Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function(){
+    Route::get('/', [\App\Http\Controllers\Admin\AdminController::class,'dashboard'])->name('dashboard');
+});
+
 
 // Home (listing)
 Route::get('/', [ListingController::class, 'home'])->name('home');
@@ -48,6 +107,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+//logout
+Route::post('/logout', function () {
+    Auth::logout();
+    return redirect('/');
+})->name('logout')->middleware('auth');
 
 // routes statis page
 Route::view('/about', 'about')->name('about');
