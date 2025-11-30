@@ -2,111 +2,71 @@
 
 namespace App\Policies;
 
-use App\Models\Job;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
+use App\Models\Job;
+use App\Models\Company;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class JobPolicy
 {
+    use HandlesAuthorization;
 
-use HandlesAuthorization;
-
-    /**
-     * Super-admin override: jika user admin, berikan semua ability.
-     */
     public function before(User $user, $ability)
     {
         if ($user->hasRole('admin')) {
-            return true; // admin boleh semua
+            return true;
         }
     }
 
     /**
-     * Determine whether the user can update the job.
+     * Determine whether the user can create jobs for a company.
+     * Allowed if the user belongs to at least one company (pivot) OR is owner of a company.
      */
-    public function update(User $user, Job $job)
+    public function create(User $user)
     {
-        // 1) jika user punya role company, cek ownership:
-        if ($user->hasRole('company')) {
-            // Jika job memiliki company_id
-            if ($job->company_id) {
-                // Cara 1: cek kalau user adalah owner (owner_id on companies)
-                if ($job->company->owner_id === $user->id) {
-                    return true;
-                }
+        // user belongs to any company via pivot
+        if ($user->companies()->exists()) return true;
 
-                // Cara 2: cek kalau user ada pada company->users pivot (recruiter)
-                if ($job->company->users->contains('id', $user->id)) {
-                    return true;
-                }
-            }
-        }
+        // or user is owner of any company
+        if (\App\Models\Company::where('owner_id', $user->id)->exists()) return true;
 
-        // default deny
         return false;
     }
 
     /**
-     * Determine whether the user can delete the job.
+     * Determine whether the user can update/manage a job.
+     * Allowed if job->company is owned by user (owner_id) OR user belongs to company's pivot.
      */
-    public function delete(User $user, Job $job)
+    public function update(User $user, Job $job)
     {
-        // Reuse update logic
+        // Admin handled in before()
+
+        // If job has no company -> deny
+        if (!$job->company_id) return false;
+
+        // Owner check
+        $company = Company::find($job->company_id);
+        if ($company && $company->owner_id && $company->owner_id == $user->id) {
+            return true;
+        }
+
+        // Pivot membership check
+        $belongs = $user->companies()->where('companies.id', $job->company_id)->exists();
+        if ($belongs) return true;
+
+        return false;
+    }
+
+    /**
+     * Prevent editing imported jobs by non-admins.
+     * Allow admin via before().
+     */
+    public function safeManage(User $user, Job $job)
+    {
+        if ($job->is_imported) {
+            return false;
+        }
         return $this->update($user, $job);
-    }	
-    /**
-     * Determine whether the user can view any models.
-     */
-    public function viewAny(User $user): bool
-    {
-        //
-    }
-
-    /**
-     * Determine whether the user can view the model.
-     */
-    public function view(User $user, Job $job): bool
-    {
-        //
-    }
-
-    /**
-     * Determine whether the user can create models.
-     */
-    public function create(User $user): bool
-    {
-        //
-    }
-
-    /**
-     * Determine whether the user can update the model.
-     */
-    public function update(User $user, Job $job): bool
-    {
-        //
-    }
-
-    /**
-     * Determine whether the user can delete the model.
-     */
-    public function delete(User $user, Job $job): bool
-    {
-        //
-    }
-
-    /**
-     * Determine whether the user can restore the model.
-     */
-    public function restore(User $user, Job $job): bool
-    {
-        //
-    }
-
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
-    public function forceDelete(User $user, Job $job): bool
-    {
-        //
     }
 }
+

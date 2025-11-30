@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Carbon\Carbon;
 
 class Job extends Model
 {
@@ -12,11 +11,18 @@ class Job extends Model
 
     protected $table = 'jobs';
 
+    /**
+     * Jika Anda lebih suka whitelist, gunakan fillable.
+     * Saya gabungkan semua field dari dua versi.
+     */
     protected $guarded = ['id'];
 
     protected $fillable = [
-        // core
-        'title', 'description', 'company', 'company_domain',
+        // employer-specific / local app fields
+        'company_id','title','description','location','remote','salary_min','salary_max','status','expires_at','views',
+
+        // core / original fields
+        'company', 'company_domain',
         'apply_url', 'final_url', 'url_source',
         'posted_at', 'fingerprint', 'source', 'discovered_at', 'easy_apply', 'location', 'type',
         'is_wfh', 'search', 'source_url', 'raw_html',
@@ -40,45 +46,56 @@ class Job extends Model
         'job_location_type',
         'valid_through',
         'is_remote',
-        'apply_url',
-        'easy_apply',
         'raw',
-        'fingerprint',
 
         // html description (sanitized)
         'description_html',
     ];
 
     protected $casts = [
+        // boolean flags (kept both names for backward compatibility)
         'is_wfh' => 'boolean',
-        'expires_at' => 'datetime',
         'is_remote' => 'boolean',
+        'remote' => 'boolean',
         'direct_apply' => 'boolean',
-        'date_posted' => 'date',
-	'valid_through' => 'date',
-	'easy_apply' => 'boolean',
-        'applicant_location_requirements' => 'array',
-        'raw' => 'array',
+        'easy_apply' => 'boolean',
+
+        // dates & datetimes
+        'expires_at' => 'datetime',
         'discovered_at' => 'datetime',
         'posted_at' => 'datetime',
+        'date_posted' => 'date',
+        'valid_through' => 'date',
+
+        // complex types
+        'applicant_location_requirements' => 'array',
+        'raw' => 'array',
+
+        // numeric salary
         'base_salary_min' => 'decimal:2',
         'base_salary_max' => 'decimal:2',
+        'salary_min' => 'decimal:2',
+        'salary_max' => 'decimal:2',
     ];
 
-    // Auto tambahkan jam & expired default (keputusan Anda; saya biarkan)
+    /**
+     * Boot logic: tetap mempertahankan logic dari versi awal Anda.
+     * (Menambahkan jam ke title/description jika belum ada dan set default expires_at)
+     */
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($job) {
-            // hanya tambahkan hour jika belum memiliki jam tambahan — ini mengikuti perilaku original Anda
+            // tambahkan jam sekarang ke title/description jika belum berakhiran jam (sesuai kode asli)
             $hour = now()->format('H:i');
 
-            if (!str_ends_with($job->title ?? '', " {$hour}")) {
-                $job->title = ($job->title ?? '') . ' ' . $hour;
+            if (!empty($job->title) && !str_ends_with($job->title, " {$hour}")) {
+                $job->title = $job->title . ' ' . $hour;
             }
-            if (!str_ends_with($job->description ?? '', " {$hour}")) {
-                $job->description = ($job->description ?? '') . ' ' . $hour;
+
+            if (!empty($job->description) && !str_ends_with($job->description, " {$hour}")) {
+                $job->description = $job->description . ' ' . $hour;
             }
 
             if (!$job->expires_at) {
@@ -88,20 +105,36 @@ class Job extends Model
             $type = strtolower($job->type ?? '');
             if (str_contains($type, 'wfh') || str_contains($type, 'remote')) {
                 $job->is_wfh = true;
+                $job->is_remote = true;
+                $job->remote = true;
             }
         });
     }
 
+    /**
+     * Scope: aktif = published + belum expired
+     */
     public function scopeActive($query)
     {
         return $query->where('status', 'published')
                      ->where('expires_at', '>', now());
     }
 
+    /**
+     * Relasi ke perusahaan
+     */
     public function company()
-{
-    return $this->belongsTo(\App\Models\Company::class);
-}
+    {
+        return $this->belongsTo(\App\Models\Company::class);
+    }
 
+    /**
+     * Relasi ke aplikasi (job applications)
+     * Pastikan model App\Models\Application ada / ganti namespace sesuai app Anda.
+     */
+    public function applications()
+    {
+        return $this->hasMany(\App\Models\Application::class);
+    }
 }
 

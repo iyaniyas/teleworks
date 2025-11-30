@@ -22,9 +22,52 @@ use App\Http\Controllers\Seeker\SavedController as SeekerSavedController;
 |
 */
 
-// application
-// Apply (user must be authenticated)
-// Semua halaman *Pencari Kerja* hanya untuk role job_seeker
+/*
+|--------------------------------------------------------------------------
+| Employer routes (company-only)
+|--------------------------------------------------------------------------
+|
+| Group baru yang menampung dashboard employer + fitur perusahaan (jobs, applicants,
+| company profile, team, billing). Middleware: auth + role:company
+|
+*/
+Route::group([
+    'prefix' => 'employer',
+    'as' => 'employer.',
+    'middleware' => ['auth', 'role:company']
+], function () {
+    // Dashboard (company)
+    Route::get('/dashboard', [App\Http\Controllers\Employer\DashboardController::class, 'index'])->name('dashboard');
+
+    // Jobs (resource)
+    Route::resource('jobs', App\Http\Controllers\Employer\JobController::class);
+
+    // Applicants for a job (index) + actions on applicants
+    Route::get('jobs/{job}/applicants', [App\Http\Controllers\Employer\ApplicantController::class, 'index'])
+        ->name('jobs.applicants.index');
+    Route::post('applicants/{applicant}/status', [App\Http\Controllers\Employer\ApplicantController::class, 'updateStatus'])
+        ->name('applicants.updateStatus');
+    Route::post('applicants/{applicant}/note', [App\Http\Controllers\Employer\ApplicantController::class, 'addNote'])
+        ->name('applicants.addNote');
+
+    // Company profile (edit/update)
+    Route::get('company', [App\Http\Controllers\Employer\CompanyController::class, 'edit'])->name('company.edit');
+    Route::post('company', [App\Http\Controllers\Employer\CompanyController::class, 'update'])->name('company.update');
+
+    // Team management (resource, without show)
+    Route::resource('team', App\Http\Controllers\Employer\TeamController::class)->except(['show']);
+
+    // Billing (stubs)
+    Route::get('billing', [App\Http\Controllers\Employer\BillingController::class, 'index'])->name('billing.index');
+    Route::post('billing/checkout', [App\Http\Controllers\Employer\BillingController::class, 'checkout'])->name('billing.checkout');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Application (Seeker-only) routes
+|--------------------------------------------------------------------------
+| Semua halaman *Pencari Kerja* hanya untuk role job_seeker
+*/
 Route::middleware(['auth','role:job_seeker'])->group(function(){
     // Seeker dashboard
     Route::get('/seeker/dashboard', [SeekerDashboardController::class, 'index'])->name('seeker.dashboard');
@@ -45,69 +88,123 @@ Route::middleware(['auth','role:job_seeker'])->group(function(){
     Route::post('/loker/{id}/apply', [JobApplicationController::class, 'apply'])->name('jobs.apply');
 });
 
-// Employer: view applications & change status (company or admin)
+/*
+|--------------------------------------------------------------------------
+| Employer: view applications & change status (company or admin)
+|--------------------------------------------------------------------------
+| Route ini spesifik untuk pengelolaan aplikasi oleh perusahaan atau admin.
+| Tetap dibiarkan terpisah karena middleware mengizinkan juga 'admin'.
+*/
 Route::middleware(['auth','role:company|admin'])->group(function() {
     Route::get('/employer/applications', [JobApplicationController::class, 'indexForEmployer'])->name('employer.applications');
     Route::post('/employer/applications/{id}/status', [JobApplicationController::class, 'changeStatus'])->name('employer.applications.status');
     Route::get('/employer/applications/{id}/resume', [JobApplicationController::class, 'downloadResume'])->name('employer.applications.resume');
 });
 
-// company creation (authenticated users)
+/*
+|--------------------------------------------------------------------------
+| Company creation (authenticated users)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth')->group(function () {
     Route::get('/company/create', [CompanyController::class, 'create'])->name('companies.create');
     Route::post('/company', [CompanyController::class, 'store'])->name('companies.store');
 });
 
-// public company profile
+/*
+|--------------------------------------------------------------------------
+| Company edit (only owner or admin)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth','role:company|admin'])->group(function () {
+    Route::get('/company/{company}/edit', [CompanyController::class, 'edit'])->name('companies.edit');
+    Route::patch('/company/{company}', [CompanyController::class, 'update'])->name('companies.update');
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Public company profile
+|--------------------------------------------------------------------------
+*/
 Route::get('/company/{slug}', [CompanyController::class, 'show'])->name('companies.show');
 
-// edit jobs (authenticated)
+/*
+|--------------------------------------------------------------------------
+| Edit jobs (authenticated)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth')->group(function () {
     Route::get('/loker/{id}/edit', [JobController::class, 'edit'])->name('jobs.edit');
     Route::patch('/loker/{id}', [JobController::class, 'update'])->name('jobs.update');
 });
 
-// route hanya untuk company
-Route::middleware(['auth','role:company'])->group(function(){
-    Route::get('/employer/dashboard', [\App\Http\Controllers\Employer\DashboardController::class, 'index'])->name('employer.dashboard');
-});
-
-// route hanya untuk admin
+/*
+|--------------------------------------------------------------------------
+| Admin routes
+|--------------------------------------------------------------------------
+*/
 Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function(){
     Route::get('/', [\App\Http\Controllers\Admin\AdminController::class,'dashboard'])->name('dashboard');
 });
 
-// Home (listing)
+/*
+|--------------------------------------------------------------------------
+| Home (listing)
+|--------------------------------------------------------------------------
+*/
 Route::get('/', [ListingController::class, 'home'])->name('home');
 
-// AJAX endpoint for external jobs (Careerjet fallback) - returns JSON
+/*
+|--------------------------------------------------------------------------
+| AJAX endpoint for external jobs (Careerjet fallback) - returns JSON
+|--------------------------------------------------------------------------
+*/
 Route::get('/ajax/external-jobs', [SearchController::class, 'externalJobsAjax'])
     ->name('search.external.ajax');
 
-// PUBLIC: daftar pencarian terbaru
+/*
+|--------------------------------------------------------------------------
+| PUBLIC: daftar pencarian terbaru
+|--------------------------------------------------------------------------
+*/
 Route::get('/pencarian-terbaru', [\App\Http\Controllers\PublicSearchLogController::class, 'index'])
     ->name('public.searchlogs');
 
-// SEO-friendly route for location-only: /cari/lokasi/{lokasi}
+/*
+|--------------------------------------------------------------------------
+| SEO-friendly search routes
+|--------------------------------------------------------------------------
+*/
 Route::get('/cari/lokasi/{lokasi}', [SearchController::class, 'slugLocation'])
     ->name('search.slug.location');
 
-// SEO-friendly slug route (preferred)
 Route::get('/cari/{kata}/{lokasi?}', [SearchController::class, 'slug'])
     ->name('search.slug');
 
-// Search page
 Route::get('/cari', [SearchController::class, 'index'])->name('search.index')->middleware('lowercase.query');
 
-// Job detail
+/*
+|--------------------------------------------------------------------------
+| Job detail
+|--------------------------------------------------------------------------
+*/
 Route::get('/loker/{id}', [JobController::class, 'show'])->name('jobs.show');
 
-// dashboard & auth (legacy/dashboard placeholder)
+/*
+|--------------------------------------------------------------------------
+| Dashboard & auth (legacy/dashboard placeholder)
+|--------------------------------------------------------------------------
+*/
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// user profile (auth)
+/*
+|--------------------------------------------------------------------------
+| User profile (auth)
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth')->group(function () {
     // Lihat profil
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
@@ -122,16 +219,28 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// logout
+/*
+|--------------------------------------------------------------------------
+| Logout
+|--------------------------------------------------------------------------
+*/
 Route::post('/logout', function () {
     Auth::logout();
     return redirect('/');
 })->name('logout')->middleware('auth');
 
-// static pages
+/*
+|--------------------------------------------------------------------------
+| Static pages
+|--------------------------------------------------------------------------
+*/
 Route::view('/about', 'about')->name('about');
 Route::view('/privacy', 'privacy')->name('privacy');
 
-// auth routes (login/register/etc)
+/*
+|--------------------------------------------------------------------------
+| Auth routes (login/register/etc)
+|--------------------------------------------------------------------------
+*/
 require __DIR__.'/auth.php';
 
