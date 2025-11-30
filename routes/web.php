@@ -109,8 +109,16 @@ Route::get('/dashboard', function () {
 
 // user profile (auth)
 Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    // Lihat profil
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+
+    // Edit profil
+    Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+
+    // Update profil
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // Hapus akun
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
