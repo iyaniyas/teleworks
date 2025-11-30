@@ -6,126 +6,141 @@
 
   @php
     $providedTimestamp = $timestamp ?? null;
-
     $baseTitle = trim($__env->yieldContent('title')) ?: 'Teleworks';
     $metaDesc = trim($__env->yieldContent('meta_description')) ?: 'Mencari kerja dari jarak jauh, langsung dari rumah.';
   @endphp
 
   <title>{{ $baseTitle }}@if($providedTimestamp) {{ $providedTimestamp }}@endif</title>
-
   <meta name="description" content="{{ e($metaDesc) }}@if($providedTimestamp) (Diperbarui {{ $providedTimestamp }})@endif" />
   <meta name="robots" content="index, follow" />
 
-  <link rel="preload" as="font" type="font/woff2" href="{{ asset('fonts/Inter-Variable.woff2') }}" crossorigin>
-
+  {{-- Vite --}}
   @vite('resources/js/app.js')
 
-  @stack('schema')
-  @stack('head')
-
+  {{-- small safe tweaks only --}}
   <style>
-    .tw-gradient-logo {
-      background: linear-gradient(90deg, #ffffff, #c9c9c9);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    /* Hilangkan underline semua link header & footer */
-    header a,
-    footer a {
-      text-decoration: none !important;
-    }
-
-    header a:hover,
-    footer a:hover {
-      text-decoration: none !important;
-    }
+    :root { --tw-accent:#5b4ad6; }
+    .site-shell { background: #081425; color: #e6eef8; min-height:100vh; }
+    .site-topbar { background: #061122; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .site-footer { background: #061122; border-top: 1px solid rgba(255,255,255,0.04); color: #cbd5e1; }
+    .tw-gradient-logo { background: linear-gradient(90deg,#fff,#c9c9c9); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .muted-light { color: #9fb0c8 !important; }
+    /* ensure footer links visible */
+    .site-footer a { color: #cbd5e1 !important; text-decoration:none; }
+    .site-footer a:hover { color: #fff !important; text-decoration: underline; }
   </style>
 
-  {{-- Favicon --}}
-  <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
-  <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
-
-  {{-- Open Graph --}}
-  <meta property="og:title" content="{{ e($baseTitle) }}">
-  <meta property="og:description" content="{{ e($metaDesc) }}">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="{{ url()->current() }}">
-  <meta property="og:site_name" content="Teleworks">
-  <meta property="og:image" content="{{ asset('og-image.jpg') }}">
-  <meta property="og:image:alt" content="Teleworks — Lowongan Kerja Remote & WFH">
-
-  {{-- Twitter Card --}}
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{{ e($baseTitle) }}">
-  <meta name="twitter:description" content="{{ e($metaDesc) }}">
-  <meta name="twitter:image" content="{{ asset('og-image.jpg') }}">
-  <meta name="google-adsense-account" content="ca-pub-6893727055927225">
-
-<body class="bg-[#0b1220] text-[#e6eef8] min-h-screen flex flex-col">
-  <div class="container mx-auto px-4 py-4 flex-1">
-    {{-- HEADER --}}
-    <header class="flex items-center justify-between mb-6">
-      <a href="{{ route('home') }}"
-         class="text-3xl font-bold tracking-wide tw-gradient-logo text-uppercase"
-         style="letter-spacing: 1px;">
-         TELE WORKS
+  @stack('head')
+</head>
+<body class="site-shell d-flex flex-column">
+  {{-- NAVBAR (responsive) --}}
+  <nav class="navbar navbar-expand-lg navbar-dark site-topbar">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="{{ route('home') }}">
+        <span class="tw-gradient-logo fs-4 fw-bold" style="letter-spacing:1px">TELE WORKS</span>
       </a>
 
-      <nav class="flex items-center space-x-4">
-        <a href="{{ route('search.index') }}"
-           class="text-light text-sm px-3 py-2 rounded-md hover:bg-white/5">
-          Semua Lowongan
-        </a>
-      </nav>
-    </header>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
 
-    {{-- MAIN CONTENT --}}
-    <main>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link" href="{{ route('search.index') }}">Semua Lowongan</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ route('public.searchlogs') }}">Pencarian Terbaru</a>
+          </li>
+          <li class="nav-item d-lg-none">
+            <a class="nav-link" href="{{ route('about') }}">Tentang</a>
+          </li>
+        </ul>
+
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+          @auth
+            {{-- Dashboard link based on role --}}
+            @php
+              $user = auth()->user();
+              $dashUrl = '/dashboard';
+              if(method_exists($user,'hasRole')) {
+                if($user->hasRole('job_seeker')) $dashUrl = route('seeker.dashboard');
+                elseif($user->hasRole('company')) $dashUrl = route('employer.dashboard');
+                elseif($user->hasRole('admin')) $dashUrl = route('admin.dashboard');
+              } else {
+                $dashUrl = route('dashboard');
+              }
+            @endphp
+
+            <li class="nav-item d-none d-lg-block">
+              <a class="nav-link" href="{{ $dashUrl }}">Dashboard</a>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                {{ auth()->user()->name }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                <li><a class="dropdown-item" href="{{ $dashUrl }}">Dashboard</a></li>
+                <li><a class="dropdown-item" href="{{ route('profile.edit') }}">Profil</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="POST" action="{{ route('logout') }}" class="px-3">
+                    @csrf
+                    <button class="btn btn-link text-danger p-0" type="submit">Logout</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          @else
+            <li class="nav-item">
+              <a class="nav-link" href="{{ route('login') }}">Masuk</a>
+            </li>
+            <li class="nav-item">
+              <a class="btn btn-sm btn-primary ms-2" href="{{ route('register') }}">Daftar</a>
+            </li>
+          @endauth
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  {{-- MAIN --}}
+  <main class="flex-fill">
+    <div class="container py-5">
       @yield('content')
-    </main>
-  </div>
+    </div>
+  </main>
 
   {{-- FOOTER --}}
-  <footer class="bg-[#070812] border-t border-[#1a1f26] mt-10">
-    <div class="container mx-auto px-4 py-6">
-      <div class="md:flex md:justify-between md:items-start">
-        <div class="mb-4 md:mb-0">
-          <a href="/"><span class="text-xl font-bold tw-gradient-logo">TELE WORKS</span></a>
-          <p class="text-light text-sm mt-2">Cari kerja jarak jauh, langsung dari rumah. © {{ date('Y') }}</p>
+  <footer class="site-footer mt-auto">
+    <div class="container py-4">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <a href="/" class="text-decoration-none"><span class="tw-gradient-logo fs-5 fw-bold">TELE WORKS</span></a>
+          <p class="mb-0 muted-light">Cari kerja jarak jauh, langsung dari rumah. © {{ date('Y') }}</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 text-sm text-light">
-          <div>
-            <div class="font-medium text-light mb-1">Menu</div>
-            <a href="{{ route('search.index') }}" class="block py-0.5 text-light">Semua Lowongan</a>
-	    <a href="{{ route('public.searchlogs') }}" class="block py-0.5 text-light">Pencarian Terbaru</a>
-	    <a href="{{ url('/') }}" class="block py-0.5 text-light">Home</a>
-          </div>
-          <div>
-            <div class="font-medium text-light mb-1">Tentang</div>
-            <a href="/about" class="block py-0.5 text-light">Tentang Teleworks</a>
-            <a href="/privacy" class="block py-0.5 text-light">Kebijakan Privasi</a>
+        <div class="col-md-6">
+          <div class="row">
+            <div class="col-6">
+              <h6 class="text-light">Menu</h6>
+              <a href="{{ route('search.index') }}" class="d-block small muted-light">Semua Lowongan</a>
+              <a href="{{ route('public.searchlogs') }}" class="d-block small muted-light">Pencarian Terbaru</a>
+            </div>
+            <div class="col-6">
+              <h6 class="text-light">Tentang</h6>
+              <a href="{{ route('about') }}" class="d-block small muted-light">Tentang Teleworks</a>
+              <a href="{{ route('privacy') }}" class="d-block small muted-light">Kebijakan Privasi</a>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="mt-6 text-xs text-light">
+      <div class="mt-3 small muted-light">
         Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥ iyaniyas.
       </div>
     </div>
-
-
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-1Z77NN195L"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-1Z77NN195L');
-</script>
-
   </footer>
 
   @stack('scripts')

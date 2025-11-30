@@ -1,34 +1,34 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container" style="padding:28px;">
-  <h2 style="color:#e6eef8">Lamaran Saya</h2>
-  <p style="color:#9fb0c8">Lihat status lamaran dan aksi yang tersedia.</p>
+<h3 class="text-light">Lamaran Saya</h3>
+<p class="muted-light">Lihat status lamaran dan aksi yang tersedia.</p>
 
-  <div style="margin-top:12px;">
-    @foreach($applications as $app)
-      <div style="background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+<div class="mt-3">
+  @foreach($applications as $app)
+    <div class="card bg-dark text-light mb-2">
+      <div class="card-body d-flex justify-content-between align-items-center">
         <div>
-          <a href="{{ route('jobs.show', $app->job->id) }}" style="font-weight:700;color:#e6eef8">{{ $app->job->title }}</a>
-          <div style="color:#9fb0c8;font-size:13px">{{ $app->job->hiring_organization ?? $app->job->company }} • {{ $app->job->job_location ?? $app->job->location }}</div>
-          <div style="margin-top:6px;color:#9fb0c8;font-size:13px">Status: <strong style="color:#e6eef8">{{ ucfirst($app->status) }}</strong></div>
+          <a href="{{ route('jobs.show', $app->job->id) }}" class="h6 text-light">{{ $app->job->title }}</a>
+          <div class="small muted-light">{{ $app->job->hiring_organization ?? $app->job->company }} • {{ $app->job->job_location ?? $app->job->location }}</div>
+          <div class="small muted-light mt-1">Status: <strong class="text-light">{{ ucfirst($app->status) }}</strong></div>
         </div>
 
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div class="d-flex gap-2">
           @if($app->resume_path)
-            <a href="{{ route('employer.applications.resume', $app->id) }}" class="btn btn-outline">Download CV</a>
+            <a href="{{ route('employer.applications.resume', $app->id) }}" class="btn btn-sm btn-outline-light">Download CV</a>
           @endif
 
           <form method="POST" action="{{ route('seeker.applications.withdraw', $app->id) }}">
             @csrf
-            <button class="btn btn-outline" type="submit" onclick="return confirm('Yakin ingin menarik lamaran?')">Withdraw</button>
+            <button class="btn btn-sm btn-outline-light" onclick="return confirm('Yakin ingin menarik lamaran?')">Withdraw</button>
           </form>
         </div>
       </div>
-    @endforeach
+    </div>
+  @endforeach
 
-    {{ $applications->links() }}
-  </div>
+  {{ $applications->links() }}
 </div>
 @endsection
 
