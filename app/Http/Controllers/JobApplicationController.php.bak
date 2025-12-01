@@ -17,12 +17,12 @@ class JobApplicationController extends Controller
     public function apply(Request $request, $jobId)
     {
         $request->validate([
-            'resume' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // 5MB
+            'resume' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // 5MB limit
             'cover_letter' => 'nullable|string|max:5000',
         ]);
 
         $user = Auth::user();
-        if (! $user) {
+        if (!$user) {
             return redirect()->route('login')->with('error', 'Silakan login untuk melamar.');
         }
 
@@ -38,9 +38,8 @@ class JobApplicationController extends Controller
 
         $resumePath = null;
         if ($request->hasFile('resume')) {
-            // store path uses configured disk (default 'public')
-            $disk = config('filesystems.resumes_disk', 'public');
-            $resumePath = $request->file('resume')->store("resumes/{$job->id}/{$user->id}", $disk);
+            // store in storage/app/public/resumes/{jobId}/{userId}/
+            $resumePath = $request->file('resume')->store("resumes/{$job->id}/{$user->id}", config('filesystems.resumes_disk', 'public'));
         }
 
         $application = JobApplication::create([
@@ -48,12 +47,12 @@ class JobApplicationController extends Controller
             'user_id' => $user->id,
             'resume_path' => $resumePath,
             'cover_letter' => $request->input('cover_letter'),
+            // Normalize status naming: keep 'applied' for backward-compat (your project used 'submitted' in roadmap).
             'status' => 'applied',
             'applied_at' => now(),
         ]);
 
-        // TODO: send notification/email to employer
-
+        // TODO: send notification/email to employer (later)
         return back()->with('success', 'Lamaran terkirim. Terima kasih!');
     }
 
@@ -63,31 +62,37 @@ class JobApplicationController extends Controller
     public function indexForEmployer(Request $request)
     {
         $user = Auth::user();
-        if (! $user) abort(403);
+        if (!$user) abort(403);
 
-        // admin sees all
+        // If user is admin (if hasRole exists)
         if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
             $apps = JobApplication::with(['job','user'])->latest()->paginate(20);
             return view('employer.applications.index', compact('apps'));
         }
 
-        // build company ids array from relations (many-to-many) or owner field
+        // Determine company IDs the user is associated with
         $companyIds = [];
 
+        // If user has a company_id column (common simple setup)
         if (isset($user->company_id) && $user->company_id) {
             $companyIds[] = $user->company_id;
         }
 
+        // If user has companies() relation (many-to-many), include them
         if (method_exists($user, 'companies')) {
             try {
                 $fromRel = $user->companies()->pluck('companies.id')->toArray();
-                if (! empty($fromRel)) $companyIds = array_merge($companyIds, $fromRel);
+                if (!empty($fromRel)) {
+                    $companyIds = array_merge($companyIds, $fromRel);
+                }
             } catch (\Throwable $e) {
-                Log::debug("indexForEmployer: unable to read user->companies relation", ['err' => $e->getMessage()]);
+                // ignore if relation not present or other DB issues
+                Log::debug("indexForEmployer: unable to read user->companies relation", ['err'=>$e->getMessage()]);
             }
         }
 
         if (empty($companyIds)) {
+            // no companies found => not authorized to view employer dashboard
             abort(403);
         }
 
@@ -113,40 +118,32 @@ class JobApplicationController extends Controller
         $application = JobApplication::with('job')->findOrFail($id);
 
         $user = Auth::user();
-        if (! $user) abort(403);
+        if (!$user) abort(403);
 
-        // -------------------------
-        // Authorization (robust):
-        // 1) admin => allowed
-        // 2) check user->companies() (preferred)
-        // 3) fallback to company->users()
-        // -------------------------
+        // Authorization: admin OR company owner/recruiter for application's job
         $allowed = false;
 
         if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
             $allowed = true;
         }
 
-        // Prefer checking many-to-many from user's side
-        if (! $allowed && method_exists($user, 'companies')) {
-            try {
-                if ($user->companies()->where('companies.id', $application->job->company_id)->exists()) {
-                    $allowed = true;
-                }
-            } catch (\Throwable $e) {
-                Log::debug('changeStatus: user->companies check failed', ['err' => $e->getMessage()]);
-            }
+        // check simple company_id equality
+        if (! $allowed && isset($user->company_id) && isset($application->job->company_id) && $user->company_id == $application->job->company_id) {
+            $allowed = true;
         }
 
-        // Fallback to company->users() if still not allowed
+        // fallback: if company and user have many-to-many relations
         if (! $allowed) {
             try {
-                $company = $application->job->company;
-                if ($company && method_exists($company, 'users') && $company->users()->where('user_id', $user->id)->exists()) {
-                    $allowed = true;
+                if (isset($application->job->company_id)) {
+                    $companyModel = $application->job->company;
+                    if ($companyModel && method_exists($companyModel, 'users')) {
+                        $belongs = $companyModel->users()->where('user_id', $user->id)->exists();
+                        if ($belongs) $allowed = true;
+                    }
                 }
             } catch (\Throwable $e) {
-                Log::debug('changeStatus: company->users check failed', ['err' => $e->getMessage()]);
+                Log::debug('changeStatus: company membership check failed', ['err'=>$e->getMessage()]);
             }
         }
 
@@ -159,10 +156,10 @@ class JobApplicationController extends Controller
             abort(403, 'Tidak diizinkan untuk mengubah status lamaran ini.');
         }
 
-        $application->status = $request->input('status');
+        $application->status = $request->status;
         $application->save();
 
-        // Optional: dispatch notification to applicant
+        // (Opsional) Notifikasi ke pelamar — tambahkan event/notification di sini
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json(['success' => true, 'status' => $application->status]);
@@ -178,44 +175,40 @@ class JobApplicationController extends Controller
     {
         $app = JobApplication::with('job.company','user')->findOrFail($id);
         $user = Auth::user();
-        if (! $user) abort(403);
+        if (!$user) abort(403);
 
-        // Authorization: applicant can access their own resume
+        // If applicant requests their own resume => allow
         if ($user->id === $app->user_id) {
-            if (! $app->resume_path) abort(404);
+            if (!$app->resume_path) abort(404);
             $disk = config('filesystems.resumes_disk', 'public');
             return Storage::disk($disk)->download($app->resume_path);
         }
 
-        // Admin allowed
+        // Admin
         if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
-            if (! $app->resume_path) abort(404);
+            if (!$app->resume_path) abort(404);
             $disk = config('filesystems.resumes_disk', 'public');
             return Storage::disk($disk)->download($app->resume_path);
         }
 
-        // Company/employer: robust checks (prefer user->companies())
+        // Employer/company checks:
         $allowed = false;
 
-        if (method_exists($user, 'companies')) {
-            try {
-                if ($user->companies()->where('companies.id', $app->job->company_id)->exists()) {
-                    $allowed = true;
-                }
-            } catch (\Throwable $e) {
-                Log::debug('downloadResume: user->companies check failed', ['err' => $e->getMessage()]);
-            }
+        // direct company_id comparison (simple setup)
+        if (isset($user->company_id) && isset($app->job->company_id) && $user->company_id == $app->job->company_id) {
+            $allowed = true;
         }
 
-        // fallback to company->users()
+        // fallback to membership via relations
         if (! $allowed) {
             try {
                 $company = $app->job->company;
-                if ($company && method_exists($company, 'users') && $company->users()->where('user_id', $user->id)->exists()) {
-                    $allowed = true;
+                if ($company && method_exists($company, 'users')) {
+                    $belongs = $company->users()->where('user_id', $user->id)->exists();
+                    if ($belongs) $allowed = true;
                 }
             } catch (\Throwable $e) {
-                Log::debug('downloadResume: company->users check failed', ['err' => $e->getMessage()]);
+                Log::debug('downloadResume: company membership check failed', ['err'=>$e->getMessage()]);
             }
         }
 
@@ -228,7 +221,7 @@ class JobApplicationController extends Controller
             abort(403, 'Tidak diizinkan untuk mengunduh file ini.');
         }
 
-        if (! $app->resume_path) abort(404);
+        if (!$app->resume_path) abort(404);
 
         $disk = config('filesystems.resumes_disk', 'public');
 
@@ -243,7 +236,7 @@ class JobApplicationController extends Controller
             abort(404, 'File resume tidak ditemukan di storage.');
         }
 
-        // prepare readable filename
+        // prepare filename
         $orig = basename($app->resume_path);
         $ext = pathinfo($orig, PATHINFO_EXTENSION);
         $cleanUser = isset($app->user->name) ? preg_replace('/\s+/', '_', strtolower($app->user->name)) : 'applicant';

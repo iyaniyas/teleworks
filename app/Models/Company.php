@@ -24,24 +24,36 @@ class Company extends Model
         'is_suspended' => 'boolean',
     ];
 
-    // If your users table has company_id, you can keep this relation.
+    /**
+     * Users relation (many-to-many via pivot company_user)
+     * This must match User::companies() which uses belongsToMany(..., 'company_user')
+     */
     public function users()
     {
-        return $this->hasMany(\App\Models\User::class, 'company_id', 'id');
+        return $this->belongsToMany(\App\Models\User::class, 'company_user', 'company_id', 'user_id')
+                    ->withPivot('role')   // hapus .withPivot jika pivot tidak punya kolom 'role'
+                    ->withTimestamps();   // hapus .withTimestamps jika pivot tidak memiliki created_at/updated_at
     }
 
-    // If company ownership is via owner_id (your schema), owner relation:
+    /**
+     * If company ownership is via owner_id (your schema), owner relation:
+     */
     public function owner()
     {
         return $this->belongsTo(\App\Models\User::class, 'owner_id', 'id');
     }
 
+    /**
+     * Jobs relation: one company has many jobs
+     */
     public function jobs()
     {
-        return $this->hasMany(Job::class, 'company_id', 'id');
+        return $this->hasMany(\App\Models\Job::class, 'company_id', 'id');
     }
 
-    // Helper to return logo url (public storage)
+    /**
+     * Helper to return logo url (public storage)
+     */
     public function logoUrl()
     {
         if ($this->logo_path) {

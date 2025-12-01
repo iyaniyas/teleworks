@@ -55,11 +55,11 @@ Route::group([
     Route::post('company', [App\Http\Controllers\Employer\CompanyController::class, 'update'])->name('company.update');
 
     // Team management (resource, without show)
-    Route::resource('team', App\Http\Controllers\Employer\TeamController::class)->except(['show']);
+   // Route::resource('team', App\Http\Controllers\Employer\TeamController::class)->except(['show']);
 
     // Billing (stubs)
-    Route::get('billing', [App\Http\Controllers\Employer\BillingController::class, 'index'])->name('billing.index');
-    Route::post('billing/checkout', [App\Http\Controllers\Employer\BillingController::class, 'checkout'])->name('billing.checkout');
+   // Route::get('billing', [App\Http\Controllers\Employer\BillingController::class, 'index'])->name('billing.index');
+   // Route::post('billing/checkout', [App\Http\Controllers\Employer\BillingController::class, 'checkout'])->name('billing.checkout');
 });
 
 /*
@@ -144,9 +144,9 @@ Route::middleware('auth')->group(function () {
 | Admin routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function(){
-    Route::get('/', [\App\Http\Controllers\Admin\AdminController::class,'dashboard'])->name('dashboard');
-});
+//Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function(){
+//    Route::get('/', [\App\Http\Controllers\Admin\AdminController::class,'dashboard'])->name('dashboard');
+//});
 
 /*
 |--------------------------------------------------------------------------

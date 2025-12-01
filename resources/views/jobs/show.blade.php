@@ -1,3 +1,4 @@
+{{-- resources/views/jobs/show.blade.php --}}
 @extends('layouts.app')
 @section('title', 'Loker '.($job->title ?? 'Lowongan Kerja').' — Teleworks')
 @php
@@ -34,73 +35,8 @@ a:hover { color: #cfe6ff; text-decoration: underline; }
 .related-list a { display:block; padding:.4rem 0; border-bottom:1px dashed rgba(255,255,255,0.03); }
 .city-links a { display:inline-block; margin-right:.5rem; margin-bottom:.25rem; padding:.35rem .6rem; background:#0e1720; border-radius:.4rem; text-decoration:none; color:#9ecbff; font-size:.9rem; }
 
-/* ----- Bottom CTA bar (full-width) ----- */
-/* Hidden by default (translateY(100%)), slide up when visible */
-.cta-bar {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  z-index: 1500;
-  background: rgba(15,17,21,0.95);
-  border-top: 1px solid rgba(45,50,60,0.9);
-  backdrop-filter: blur(6px);
-  padding: .6rem 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transform: translateY(100%);
-  transition: transform 240ms cubic-bezier(.22,.9,.35,1), opacity 180ms ease;
-  opacity: 0;
-  pointer-events: none; /* disable interactions while hidden */
-}
-
-/* When active - visible */
-.cta-bar.visible {
-  transform: translateY(0);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Inner button style */
-.cta-bar .cta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: .6rem;
-  padding: .65rem 1.1rem;
-  border-radius: .6rem;
-  background: linear-gradient(90deg,#2563eb,#1e40af);
-  color: #fff;
-  font-weight: 700;
-  text-decoration: none;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* subtle hover */
-.cta-bar .cta-btn:hover {
-  transform: translateY(-2px);
-}
-
-/* small screens: keep padding and comfortable hit area */
-@media (max-width: 520px) {
-  .cta-bar { padding: .55rem .6rem; }
-  .cta-bar .cta-btn {
-    width: 100%;
-    justify-content: center;
-    padding: .75rem 1rem;
-    border-radius: .45rem;
-  }
-}
-
-/* Accessibility focus */
-.cta-bar .cta-btn:focus {
-  outline: 3px solid rgba(99,102,241,0.22);
-  outline-offset: 3px;
-}
-
-/* Make sure the main container has bottom padding so content isn't hidden */
-body .container { padding-bottom: 5.25rem; } /* room for CTA bar */
+/* Make sure the main container has bottom padding so content isn't hidden by modal/cta */
+body .container { padding-bottom: 6rem; } /* room for centered CTA */
 </style>
 
 <div class="mb-3">
@@ -137,8 +73,6 @@ body .container { padding-bottom: 5.25rem; } /* room for CTA bar */
 
       @if($job->applicant_location_requirements)
         @php
-          // decode & normalize applicant location requirements,
-          // map common country codes like ID/IDN -> Indonesia
           $raw = is_array($job->applicant_location_requirements) ? $job->applicant_location_requirements : (json_decode($job->applicant_location_requirements, true) ?: [$job->applicant_location_requirements]);
           $map = ['ID' => 'Indonesia','IDN' => 'Indonesia','id'=>'Indonesia','Id'=>'Indonesia'];
           $appReqDisplay = [];
@@ -163,7 +97,7 @@ body .container { padding-bottom: 5.25rem; } /* room for CTA bar */
         <li><strong>Jenis Pekerjaan:</strong> {{ ucfirst($job->employment_type) }}</li>
       @endif
 
-      {{-- Base Salary: show string or structured numbers --}}
+      {{-- Base Salary --}}
       @if($job->base_salary_string || $job->base_salary_min || $job->base_salary_max)
         <li><strong>Gaji:</strong>
           @if(!empty($job->base_salary_string))
@@ -192,8 +126,9 @@ body .container { padding-bottom: 5.25rem; } /* room for CTA bar */
     {!! $job->description_html ?? ($job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>') !!}
   </div>
 
+  {{-- If apply_url existed previously, we intentionally removed external CTA; internal apply UI below --}}
   @if(empty($job->apply_url))
-  <div class="tw-alert mb-4">Link lamaran belum tersedia.</div>
+  <div class="tw-alert mb-4">Link lamaran eksternal tidak disertakan — gunakan tombol "Lamar Sekarang" di bawah jika tersedia.</div>
   @endif
 
   {{-- Related jobs (loker terbaru) --}}
@@ -230,115 +165,118 @@ body .container { padding-bottom: 5.25rem; } /* room for CTA bar */
 </div>
 </div>
 
-{{-- ----- Bottom CTA bar (render hanya bila apply_url tersedia) ----- --}}
-@if(!empty($job->apply_url))
-<div id="teleworks-cta-bar" class="cta-bar">
-  <a
-    id="teleworks-cta-link"
-    href="{{ $job->apply_url }}"
-    target="_blank"
-    rel="nofollow noopener noreferrer"
-    class="cta-btn"
-    aria-label="Lamar posisi {{ $job->title }}"
-    title="Lamar Sekarang — {{ $job->title }}"
-    tabindex="-1"  {{-- start non-focusable until bar is visible --}}
-  >
-    <span aria-hidden="true" class="fa fa-briefcase"></span>
-    <span>Lamar Sekarang</span>
-  </a>
-</div>
-
-{{-- Lightweight JS: tampilkan bar saat scroll ke bawah, sembunyikan saat scroll ke atas
-     Accessibility:
-     - Don't touch aria-hidden on container
-     - Manage tabindex of the interactive link so it's not reachable when hidden
---}}
-<script>
-(function(){
-  if (typeof window === 'undefined') return;
-
-  const bar = document.getElementById('teleworks-cta-bar');
-  const link = document.getElementById('teleworks-cta-link');
-  if (!bar || !link) return;
-
-  let lastScroll = window.pageYOffset || document.documentElement.scrollTop || 0;
-  let ticking = false;
-  const threshold = 150; // minimal scroll from top before considering showing
-
-  function showBar() {
-    if (!bar.classList.contains('visible')) {
-      bar.classList.add('visible');
-      // enable keyboard focus on the link
-      link.removeAttribute('tabindex');
-    }
-  }
-
-  function hideBar() {
-    if (bar.classList.contains('visible')) {
-      bar.classList.remove('visible');
-      // prevent the link from being focusable while hidden
-      link.setAttribute('tabindex', '-1');
-    } else {
-      // ensure it's not focusable by default
-      link.setAttribute('tabindex', '-1');
-    }
-  }
-
-  function onScroll() {
-    const current = window.pageYOffset || document.documentElement.scrollTop || 0;
-
-    if (!ticking) {
-      window.requestAnimationFrame(function() {
-        // show when scrolling down and we've scrolled past threshold
-        if (current > lastScroll && current > threshold) {
-          showBar();
-        } else {
-          hideBar();
+{{-- ===============================
+   INTERNAL APPLY — Bootstrap 5 (Dark, centered CTA + modal)
+   =============================== --}}
+@php
+    $directApply = !empty($job->direct_apply);
+    $existingApp = null;
+    if (auth()->check()) {
+        try {
+            $existingApp = auth()->user()->applications()->where('job_id', $job->id)->first();
+        } catch (\Throwable $e) {
+            $existingApp = \App\Models\JobApplication::where('job_id', $job->id)
+                                ->where('user_id', auth()->id())->first();
         }
-        lastScroll = current <= 0 ? 0 : current; // avoid negative
-        ticking = false;
+    }
+@endphp
+
+@if($directApply)
+  {{-- Centered small CTA fixed at bottom (dark) --}}
+  <div class="position-fixed w-100" style="left:0;right:0;bottom:18px;z-index:1500;pointer-events:none;">
+    <div class="d-flex justify-content-center">
+      @guest
+        <a href="{{ route('login') }}" class="btn btn-primary btn-lg shadow" style="pointer-events:auto;">
+          Login untuk Lamar
+        </a>
+      @else
+        @if($existingApp)
+          <button class="btn btn-secondary btn-lg shadow" disabled style="pointer-events:auto;">
+            Sudah melamar — {{ ucfirst($existingApp->status ?? 'submitted') }}
+          </button>
+        @else
+          <button class="btn btn-primary btn-lg shadow" data-bs-toggle="modal" data-bs-target="#applyModal" style="pointer-events:auto;">
+            Lamar Sekarang
+          </button>
+        @endif
+      @endguest
+    </div>
+  </div>
+
+  {{-- Apply Modal (centered, dark) --}}
+  <div class="modal fade" id="applyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Lamar: {{ $job->title }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
+        </div>
+
+        <form action="{{ url('/loker/'.$job->id.'/apply') }}" method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+          @csrf
+          <div class="modal-body">
+            {{-- Validation errors --}}
+            @if($errors->any() && session()->hasOldInput())
+              <div class="alert alert-danger">
+                <ul class="mb-0 small">
+                  @foreach($errors->all() as $err)
+                    <li>{{ $err }}</li>
+                  @endforeach
+                </ul>
+              </div>
+            @endif
+
+            <div class="mb-3">
+              <label for="cover_letter" class="form-label small-muted">Surat Lamaran (opsional)</label>
+              <textarea id="cover_letter" name="cover_letter" rows="4"
+                        class="form-control bg-transparent text-light border-secondary">{{ old('cover_letter') }}</textarea>
+            </div>
+
+            <div class="mb-3">
+              <label for="resume" class="form-label small-muted">Unggah CV (PDF / DOC / DOCX) — maks 5MB (opsional)</label>
+              <input id="resume" name="resume" type="file" accept=".pdf,.doc,.docx"
+                     class="form-control bg-transparent text-light border-secondary">
+              <div class="form-text small-muted">Jika sudah menyimpan CV di profil, upload tidak wajib.</div>
+            </div>
+          </div>
+
+          <div class="modal-footer border-0">
+            <div class="w-100 d-flex gap-2">
+              <button type="button" class="btn btn-outline-light w-50" data-bs-dismiss="modal">Batal</button>
+              <button id="applySubmitBtn" type="submit" class="btn btn-success w-50">Kirim Lamaran</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {{-- Auto-open modal when server returned validation errors --}}
+  @if($errors->any() && session()->hasOldInput())
+    <script>
+      document.addEventListener("DOMContentLoaded", function(){
+        var modalEl = document.getElementById('applyModal');
+        if (modalEl) {
+          var m = new bootstrap.Modal(modalEl);
+          m.show();
+        }
       });
-      ticking = true;
-    }
-  }
+    </script>
+  @endif
 
-  // passive listener for performance
-  window.addEventListener('scroll', onScroll, { passive: true });
-
-  // On load: if page already scrolled below threshold, keep hidden until user scrolls directionally
-  document.addEventListener('DOMContentLoaded', function(){
-    const start = window.pageYOffset || document.documentElement.scrollTop || 0;
-    if (start > threshold) {
-      // keep hidden initially; link remains non-focusable
-      hideBar();
-    } else {
-      hideBar();
-    }
-  });
-
-  // Hide bar when focusing on form elements (avoid covering them)
-  document.addEventListener('focusin', function(e){
-    const t = e.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
-      hideBar();
-    }
-  });
-
-  // Optional: keyboard shortcut "L" focuses the apply link when visible (accessibility enhancement)
-  document.addEventListener('keydown', function(e){
-    // ignore if modifier keys are used or if focus already in input
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    const active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-
-    if ((e.key === 'l' || e.key === 'L') && bar.classList.contains('visible')) {
-      e.preventDefault();
-      link.focus();
-    }
-  });
-
-})();
-</script>
+  {{-- Prevent double-submit visual feedback --}}
+  <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      var form = document.querySelector('#applyModal form');
+      var btn = document.getElementById('applySubmitBtn');
+      if(form && btn){
+        form.addEventListener('submit', function(){
+          btn.disabled = true;
+          btn.textContent = 'Mengirim...';
+        });
+      }
+    });
+  </script>
 @endif
 
 @endsection
