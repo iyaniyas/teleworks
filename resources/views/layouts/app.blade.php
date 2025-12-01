@@ -141,6 +141,17 @@
         Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥ iyaniyas.
       </div>
     </div>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1Z77NN195L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-1Z77NN195L');
+</script>
+
   </footer>
 
   @stack('scripts')

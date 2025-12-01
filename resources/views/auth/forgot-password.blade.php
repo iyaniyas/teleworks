@@ -1,25 +1,55 @@
-<x-guest-layout>
-    <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-        {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
+@extends('layouts.app')
+
+@section('content')
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card bg-dark text-light">
+      <div class="card-body">
+        <h3 class="mb-1">Lupa Password</h3>
+        <p class="muted-light mb-3">Masukkan email terdaftar. Kami akan mengirim link untuk mereset password.</p>
+
+        {{-- status (link terkirim) --}}
+        @if (session('status'))
+          <div class="alert alert-success" role="alert">
+            {{ session('status') }}
+          </div>
+        @endif
+
+        {{-- error umum --}}
+        @if ($errors->any())
+          <div class="alert alert-danger">
+            <ul class="mb-0 small">
+              @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+              @endforeach
+            </ul>
+          </div>
+        @endif
+
+        <form method="POST" action="{{ route('password.email') }}">
+          @csrf
+
+          <div class="mb-3">
+            <label for="email" class="form-label text-light">Email</label>
+            <input id="email" name="email" type="email" class="form-control" value="{{ old('email') }}" required autofocus>
+            @error('email') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
+          </div>
+
+          <div class="d-grid">
+            <button class="btn btn-primary btn-lg">Kirim Link Reset Password</button>
+          </div>
+
+          <div class="text-center mt-3 muted-light">
+            Ingat password? <a href="{{ route('login') }}" class="text-accent">Masuk</a>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <!-- Session Status -->
-    <x-auth-session-status class="mb-4" :status="session('status')" />
+    <div class="text-center mt-3 small muted-light">
+      Belum punya akun? <a href="{{ route('register') }}" class="text-accent">Daftar</a>
+    </div>
+  </div>
+</div>
+@endsection
 
-    <form method="POST" action="{{ route('password.email') }}">
-        @csrf
-
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Email Password Reset Link') }}
-            </x-primary-button>
-        </div>
-    </form>
-</x-guest-layout>

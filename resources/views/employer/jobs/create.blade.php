@@ -9,6 +9,20 @@
       <div class="card" style="background:#1c1f2a;color:#d1d6e3;">
         <div class="card-header"><strong>Buat Lowongan Baru</strong></div>
         <div class="card-body">
+
+          <!-- Only placeholder fields use a light style -->
+          <style>
+            .lightfield {
+              background: #ffffff !important;
+              border: 1px solid #d2d2d2 !important;
+              color: #222 !important;
+            }
+            .lightfield::placeholder {
+              color: #555 !important;
+              opacity: 1;
+            }
+          </style>
+
           @if(session('error')) <div class="alert alert-danger">{{ session('error') }}</div> @endif
           @if(session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
 
@@ -27,34 +41,49 @@
 
             <div class="mb-3">
               <label class="form-label text-white">Judul <span class="text-danger">*</span></label>
-              <input type="text" name="title" class="form-control" value="{{ old('title') }}" required style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
+              <input type="text" name="title" class="form-control"
+                     value="{{ old('title') }}" required
+                     style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
               @error('title') <div class="small text-danger">{{ $message }}</div> @enderror
             </div>
 
             <div class="mb-3">
               <label class="form-label text-white">Deskripsi <span class="text-danger">*</span></label>
-              <textarea name="description" rows="6" class="form-control" required style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">{{ old('description') }}</textarea>
+              <textarea name="description" rows="6"
+                        class="form-control lightfield"
+                        required placeholder="Deskripsikan pekerjaan...">{{ old('description') }}</textarea>
               @error('description') <div class="small text-danger">{{ $message }}</div> @enderror
             </div>
 
             <div class="row g-3">
               <div class="col-md-6 mb-3">
                 <label class="form-label text-white">Lokasi Kerja <span class="text-danger">*</span></label>
-                <input type="text" name="location" class="form-control" value="{{ old('location') }}" required placeholder="Contoh: North Jakarta, Jakarta, Indonesia" style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
+                <input type="text" name="location"
+                       class="form-control lightfield"
+                       value="{{ old('location') }}" required
+                       placeholder="Contoh: North Jakarta, Jakarta, Indonesia">
                 <div class="small text-muted">Gunakan ini sebagai lokasi kerja (wajib).</div>
                 @error('location') <div class="small text-danger">{{ $message }}</div> @enderror
               </div>
 
               <div class="col-md-6 mb-3">
                 <label class="form-label text-white">Tipe Pekerjaan <span class="text-danger">*</span></label>
-                <input type="text" name="employment_type" class="form-control" value="{{ old('employment_type') }}" placeholder="Full time / Part time / Contract" required style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
+                <input type="text" name="employment_type"
+                       class="form-control lightfield"
+                       value="{{ old('employment_type') }}" required
+                       placeholder="Full time / Part time / Contract">
                 @error('employment_type') <div class="small text-danger">{{ $message }}</div> @enderror
               </div>
             </div>
 
             <div class="mb-3">
               <label class="form-label text-white">Kualifikasi Lokasi Pelamar <span class="text-danger">*</span></label>
-              <textarea name="applicant_location_requirements" rows="3" class="form-control" placeholder="Contoh: ID, US, SG atau Indonesia, Singapore" required style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">{{ old('applicant_location_requirements') }}</textarea>
+              <!-- Made smaller: rows=2 and reduced height -->
+              <textarea name="applicant_location_requirements"
+                        rows="2"
+                        class="form-control lightfield"
+                        placeholder="Contoh: ID, US, SG atau Indonesia, Singapore"
+                        style="height:70px;">{{ old('applicant_location_requirements') }}</textarea>
               <div class="small text-muted mt-1">Masukkan ISO country codes (ID, US) atau nama negara, pisahkan pakai koma atau baris baru.</div>
               @error('applicant_location_requirements') <div class="small text-danger">{{ $message }}</div> @enderror
             </div>
@@ -83,7 +112,6 @@
               </div>
             </div>
 
-            {{-- Extra fields (date_posted still optional) --}}
             <div class="mb-3">
               <label class="form-label text-white">Tanggal Dipublikasikan (date_posted)</label>
               <input type="date" name="date_posted" class="form-control" value="{{ old('date_posted', \Carbon\Carbon::now()->format('Y-m-d')) }}" style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
@@ -102,7 +130,7 @@
 
               <div class="col-md-6" id="applyContactWrapper" style="{{ old('apply_via')=='external' ? '' : 'display:none;' }}">
                 <label class="form-label text-white">Link / Kontak Melamar (apply_contact)</label>
-                <input type="text" name="apply_contact" id="apply_contact" class="form-control" value="{{ old('apply_contact') }}" placeholder="https://, mailto:, https://wa.me/62..." style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
+                <input type="text" name="apply_contact" id="apply_contact" class="form-control lightfield" value="{{ old('apply_contact') }}" placeholder="https://, mailto:, https://wa.me/62...">
                 <div class="small text-muted">Jika memilih "Situs/WA/Email", isi link atau kontak di sini.</div>
               </div>
             </div>

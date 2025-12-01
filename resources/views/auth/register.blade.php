@@ -6,7 +6,7 @@
     <div class="card bg-dark text-light">
       <div class="card-body">
         <h3 class="mb-1">Buat akun baru</h3>
-        <p class="muted-light mb-3">Pilih peranmu lalu isi detail. Pilih "Perusahaan" jika kamu ingin memposting lowongan.</p>
+        <p class="muted-light mb-3">Isi data lalu Pilih peranmu. Pilih "Perusahaan" jika kamu ingin memposting lowongan.</p>
 
         <form method="POST" action="{{ route('register') }}">
           @csrf
@@ -23,15 +23,16 @@
             @error('email') <div class="text-danger small">{{ $message }}</div> @enderror
           </div>
 
-          <div class="row g-2 mb-3">
-            <div class="col">
-              <label class="form-label text-light">Password</label>
-              <input name="password" type="password" class="form-control" required>
-            </div>
-            <div class="col">
-              <label class="form-label text-light">Konfirmasi Password</label>
-              <input name="password_confirmation" type="password" class="form-control" required>
-            </div>
+          <!-- Password stacked (confirm below) -->
+          <div class="mb-3">
+            <label class="form-label text-light">Password</label>
+            <input name="password" type="password" class="form-control" required>
+            @error('password') <div class="text-danger small">{{ $message }}</div> @enderror
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label text-light">Konfirmasi Password</label>
+            <input name="password_confirmation" type="password" class="form-control" required>
           </div>
 
           <div class="mb-3">
@@ -39,8 +40,8 @@
 
             <div class="d-grid gap-2">
               <div class="btn-group" role="radiogroup" aria-label="Pilihan peran">
-                <button type="button" class="btn btn-outline-light role-select active" data-value="job_seeker">Pencari Kerja</button>
-                <button type="button" class="btn btn-outline-light role-select" data-value="company">Perusahaan / Rekruter</button>
+                <button type="button" class="btn btn-outline-light role-select active" data-value="job_seeker">Cari Kerja</button>
+                <button type="button" class="btn btn-outline-light role-select" data-value="company">Perusahaan</button>
               </div>
               <input type="hidden" name="role" id="role_input" value="{{ old('role','job_seeker') }}">
             </div>
