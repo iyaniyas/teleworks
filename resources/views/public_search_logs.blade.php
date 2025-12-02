@@ -7,12 +7,26 @@
 use Illuminate\Support\Str;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Pagination\Paginator;
 
-// Ambil semua log
-$logs = \App\Models\SearchLog::orderByDesc('created_at')->get();
+// $logs dikirim dari controller — seharusnya LengthAwarePaginator
+// Pastikan kita menggunakan koleksi dari paginator agar blade tidak melakukan query DB lagi
+if ($logs instanceof LengthAwarePaginator) {
+    $logsCollection = $logs->getCollection();
+} elseif (is_array($logs)) {
+    $logsCollection = collect($logs);
+} else {
+    // as fallback, try to cast to collection
+    $logsCollection = collect($logs);
+}
+
+/*
+  Dari sini blade sama seperti sebelumnya, tapi menggunakan $logsCollection
+  (yang berasal dari cache/paginator controller) untuk membangun keywords, locations, combos.
+*/
 
 // --- KATA KUNCI ---
-$keywords = $logs->pluck('q')
+$keywords = $logsCollection->pluck('q')
     ->map(fn($v) => trim((string)$v))
     ->filter()
     ->unique()
@@ -20,7 +34,7 @@ $keywords = $logs->pluck('q')
     ->all();
 
 // --- LOKASI ---
-$locations = $logs->pluck('params')
+$locations = $logsCollection->pluck('params')
     ->map(function($p){
         if (!$p) return null;
         $arr = json_decode($p, true);
@@ -33,13 +47,13 @@ $locations = $logs->pluck('params')
 
 // --- KOMBINASI (q + lokasi) ---
 $combos = [];
-foreach ($logs as $log) {
-    $q  = trim((string)($log->q ?? ''));
+foreach ($logsCollection as $log) {
+    $qv  = trim((string)($log->q ?? ''));
     $arr = $log->params ? json_decode($log->params, true) : [];
     $lok = trim((string)($arr['lokasi'] ?? ''));
 
-    if ($q !== '' && $lok !== '') {
-        $combos[] = "{$q} | {$lok}";
+    if ($qv !== '' && $lok !== '') {
+        $combos[] = "{$qv} | {$lok}";
     }
 }
 $combos = collect($combos)->unique()->values()->all();
@@ -70,10 +84,9 @@ $paginator = new LengthAwarePaginator($pageItems, $total, $perPage, $currentPage
     'query' => request()->query(),
 ]);
 
-// Bagi 4 kolom untuk tampilan
+// Bagi 4 kolom untuk tampilan (berbasis pageItems yang sedang ditampilkan)
 $chunks = array_chunk($pageItems, ceil(count($pageItems)/4));
 @endphp
-
 
 <div class="mb-4">
   <h1 class="h4 text-light">Telusuri pencarian terbaru</h1>
@@ -98,8 +111,8 @@ $chunks = array_chunk($pageItems, ceil(count($pageItems)/4));
                 } elseif ($type === 'lokasi') {
                     $url = url('/cari/lokasi/'.Str::slug($value,'-'));
                 } else { // combo "q | lokasi"
-                    [$q,$lok] = array_map('trim', explode('|',$value));
-                    $url = url('/cari/'.Str::slug($q,'-').'/'.Str::slug($lok,'-'));
+                    [$qPart,$lokPart] = array_map('trim', explode('|',$value));
+                    $url = url('/cari/'.Str::slug($qPart,'-').'/'.Str::slug($lokPart,'-'));
                 }
               @endphp
 

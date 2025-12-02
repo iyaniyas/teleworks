@@ -46,35 +46,52 @@
   @php
     use Illuminate\Support\Str;
     use Illuminate\Support\Facades\DB;
+    use Illuminate\Support\Facades\Cache;
 
     /**
      * Ambil 20 kata kunci terbaru dari tabel search_logs (kolom `q`).
+     * CACHE: Hasil disimpan selama 12 jam agar query tidak berjalan setiap request.
+     *
+     * Key cache: teleworks.home.latest_terms
+     * TTL: 12 jam (now()->addHours(12))
+     *
      * Logika:
-     *  - Ambil record terbaru (urut desc berdasarkan id - jika ada created_at, bisa diganti)
+     *  - Ambil record terbaru (urut desc berdasarkan id)
      *  - Ambil nilai q, lower-case + trim
      *  - Buang nilai kosong, ambil unique, ambil 20 teratas
      *
-     * Catatan: idealnya query ini dilakukan di Controller, tapi saya taruh di view sesuai permintaan.
+     * Catatan: idealnya query ini dilakukan di Controller, tapi ini sesuai permintaan.
      */
-    $terms = collect(
-      DB::table('search_logs')
-        ->whereNotNull('q')
-        ->where('q', '!=', '')
-        ->orderByDesc('id') // ubah ke orderByDesc('created_at') jika kolom created_at tersedia dan lebih akurat
-        ->limit(200) // ambil lebih banyak dulu lalu unique di PHP untuk menjaga ordering terbaru per kata unik
-        ->pluck('q')
-    )
-    ->map(function($t) {
-      // normalisasi: trim & lowercase
-      return trim(mb_strtolower($t));
-    })
-    ->filter()       // buang kosong
-    ->unique()       // unique
-    ->values()
-    ->slice(0, 20);  // ambil 20 kata kunci terbaru
+    $cacheKey = 'teleworks.home.latest_terms';
+    $terms = Cache::remember($cacheKey, now()->addHours(12), function () {
+        // Jika tabel search_logs besar, ambil batch (200) lalu unique di PHP agar urutan terbaru terjaga
+        $raw = DB::table('search_logs')
+            ->whereNotNull('q')
+            ->where('q', '!=', '')
+            ->orderByDesc('id') // atau orderByDesc('created_at') jika tersedia/diinginkan
+            ->limit(200)
+            ->pluck('q')
+            ->filter()
+            ->map(fn($t) => trim(mb_strtolower($t)))
+            ->filter()
+            ->values();
 
-    // jika tidak ada kata kunci dari db, fallback ke daftar default (opsional)
-    if ($terms->isEmpty()) {
+        // Unique preserve order (first occurrence kept)
+        $unique = [];
+        $result = [];
+        foreach ($raw as $r) {
+            if ($r === '') continue;
+            if (! array_key_exists($r, $unique)) {
+                $unique[$r] = true;
+                $result[] = $r;
+                if (count($result) >= 20) break;
+            }
+        }
+        return collect($result);
+    });
+
+    // jika cache kosong (edge-case) fallback ke default list
+    if (empty($terms) || ($terms instanceof \Illuminate\Support\Collection && $terms->isEmpty())) {
       $terms = collect([
         'admin','admin online','cs','customer service','admin chat',
         'data entry','freelance','part time','full time','kerja dari rumah',
@@ -83,7 +100,7 @@
       ])->slice(0,20)->values();
     }
 
-    // cities: ambil 20, bagi 2 kolom, 10 per kolom
+    // cities: ambil 20, bagi 2 kolom, 10 per kolom (tidak di-cache karena static)
     $cities = collect([
       'jakarta','surabaya','bandung','bekasi','depok','tangerang','semarang','medan','makassar','palembang',
       'denpasar','yogyakarta','malang','batam','balikpapan','bandar lampung','pekanbaru','banjarmasin','samarinda','padang'

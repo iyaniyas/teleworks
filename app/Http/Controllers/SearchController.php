@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Job;
 use App\Models\SearchLog;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Http;
 use App\Services\CareerjetClient;
 use App\Services\CareerjetParser;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SearchController extends Controller
 {
@@ -22,23 +22,35 @@ class SearchController extends Controller
         $qRaw      = trim($request->query('q', ''));
         $lokasiRaw = trim($request->query('lokasi', ''));
         $wfh       = $request->boolean('wfh');
-        $perPage   = 21; // default per page
+        $perPage   = 21;
 
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
         $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
-        $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
+        $fallbackHasResults = (method_exists($jobs, 'total')
+            ? (int)$jobs->total()
+            : (is_countable($jobs) ? count($jobs) : 0)) > 0;
         $external_rendered = ($dbTotal === 0 && $fallbackHasResults);
 
         $fallback_note = null;
         try {
             if ($dbTotal === 0 && $fallbackHasResults) {
                 if (!empty($qRaw) && !empty($lokasiRaw)) {
-                    $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di %s. Berikut hasil dari lokasi lain:', $qRaw, $lokasiRaw);
+                    $fallback_note = sprintf(
+                        'Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di %s. Berikut hasil dari lokasi lain:',
+                        $qRaw,
+                        $lokasiRaw
+                    );
                 } elseif (!empty($qRaw)) {
-                    $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di database. Berikut hasil di lokasi lain:', $qRaw);
+                    $fallback_note = sprintf(
+                        'Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di database. Berikut hasil di lokasi lain:',
+                        $qRaw
+                    );
                 } elseif (!empty($lokasiRaw)) {
-                    $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:', $lokasiRaw);
+                    $fallback_note = sprintf(
+                        'Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:',
+                        $lokasiRaw
+                    );
                 } else {
                     $fallback_note = 'Hasil dari sumber lain karena tidak ditemukan di database.';
                 }
@@ -55,24 +67,23 @@ class SearchController extends Controller
                 if ($hasProfanity) {
                     // Block saving the raw search. Log the event (no raw words saved).
                     Log::info('Blocked profane search (not saved)', [
-                        'q_present' => $qRaw !== '' ? true : false,
-                        'lokasi_present' => $lokasiRaw !== '' ? true : false,
-                        'ip' => $request->ip(),
-                        'ua' => substr($request->header('User-Agent', ''), 0, 255),
+                        'q_present'       => $qRaw !== '' ? true : false,
+                        'lokasi_present'  => $lokasiRaw !== '' ? true : false,
+                        'ip'              => $request->ip(),
+                        'ua'              => substr($request->header('User-Agent', ''), 0, 255),
                     ]);
                 } else {
                     SearchLog::create([
-                        'q' => Str::limit($qRaw, 255),
-                        'params' => json_encode([
+                        'q'           => Str::limit($qRaw, 255),
+                        'params'      => json_encode([
                             'lokasi' => $lokasiRaw,
                             'wfh'    => $wfh ? 1 : 0,
                         ]),
                         'result_count' => method_exists($jobs, 'total')
-                            ? (int) $jobs->total()
+                            ? (int)$jobs->total()
                             : (is_countable($jobs) ? count($jobs) : 0),
-                        'user_ip' => $request->ip(),
-                        'user_agent' => substr($request->header('User-Agent', ''), 0, 255),
-                        // timestamps handled by Eloquent
+                        'user_ip'     => $request->ip(),
+                        'user_agent'  => substr($request->header('User-Agent', ''), 0, 255),
                     ]);
                 }
             }
@@ -81,13 +92,13 @@ class SearchController extends Controller
         }
 
         return view('cari', [
-            'jobs'             => $jobs,
-            'q'                => mb_strtolower($qRaw),
-            'lokasi'           => mb_strtolower($lokasiRaw),
-            'qRaw'             => $qRaw,
-            'lokasiRaw'        => $lokasiRaw,
-            'wfh'              => $wfh ? '1' : '0',
-            'fallback_note'    => $fallback_note,
+            'jobs'              => $jobs,
+            'q'                 => mb_strtolower($qRaw),
+            'lokasi'            => mb_strtolower($lokasiRaw),
+            'qRaw'              => $qRaw,
+            'lokasiRaw'         => $lokasiRaw,
+            'wfh'               => $wfh ? '1' : '0',
+            'fallback_note'     => $fallback_note,
             'external_rendered' => $external_rendered,
         ]);
     }
@@ -115,13 +126,18 @@ class SearchController extends Controller
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
         $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
-        $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
+        $fallbackHasResults = (method_exists($jobs, 'total')
+            ? (int)$jobs->total()
+            : (is_countable($jobs) ? count($jobs) : 0)) > 0;
         $external_rendered = ($dbTotal === 0 && $fallbackHasResults);
 
         $fallback_note = null;
         try {
             if ($dbTotal === 0 && $fallbackHasResults) {
-                $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:', $lokasiRaw);
+                $fallback_note = sprintf(
+                    'Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:',
+                    $lokasiRaw
+                );
             }
         } catch (\Throwable $e) {
             Log::debug('fallback_note check failed (slugLocation): ' . $e->getMessage());
@@ -138,16 +154,16 @@ class SearchController extends Controller
                 if ($hasProfanity) {
                     Log::info('Blocked profane search (slugLocation not saved)', [
                         'lokasi_present' => $lokasiRaw !== '' ? true : false,
-                        'ip' => request()->ip(),
-                        'ua' => substr(request()->header('User-Agent', ''), 0, 255),
+                        'ip'             => request()->ip(),
+                        'ua'             => substr(request()->header('User-Agent', ''), 0, 255),
                     ]);
                 } else {
                     \App\Models\SearchLog::create([
-                        'q' => '',
-                        'params' => json_encode(['lokasi' => $lokasiRaw, 'wfh' => $wfh ? 1 : 0]),
+                        'q'           => '',
+                        'params'      => json_encode(['lokasi' => $lokasiRaw, 'wfh' => $wfh ? 1 : 0]),
                         'result_count' => method_exists($jobs, 'total') ? (int)$jobs->total() : 0,
-                        'user_ip' => request()->ip(),
-                        'user_agent' => substr(request()->header('User-Agent', ''), 0, 255),
+                        'user_ip'     => request()->ip(),
+                        'user_agent'  => substr(request()->header('User-Agent', ''), 0, 255),
                     ]);
                 }
             }
@@ -156,13 +172,13 @@ class SearchController extends Controller
         }
 
         return view('cari', [
-            'jobs' => $jobs,
-            'q' => '',
-            'lokasi' => mb_strtolower($lokasiRaw),
-            'qRaw' => '',
-            'lokasiRaw' => $lokasiRaw,
-            'wfh' => $wfh ? '1' : '0',
-            'fallback_note' => $fallback_note,
+            'jobs'              => $jobs,
+            'q'                 => '',
+            'lokasi'            => mb_strtolower($lokasiRaw),
+            'qRaw'              => '',
+            'lokasiRaw'         => $lokasiRaw,
+            'wfh'               => $wfh ? '1' : '0',
+            'fallback_note'     => $fallback_note,
             'external_rendered' => $external_rendered,
         ]);
     }
@@ -203,18 +219,30 @@ class SearchController extends Controller
         $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
 
         $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
-        $fallbackHasResults = (method_exists($jobs,'total') ? (int)$jobs->total() : (is_countable($jobs) ? count($jobs) : 0)) > 0;
+        $fallbackHasResults = (method_exists($jobs, 'total')
+            ? (int)$jobs->total()
+            : (is_countable($jobs) ? count($jobs) : 0)) > 0;
         $external_rendered = ($dbTotal === 0 && $fallbackHasResults);
 
         $fallback_note = null;
         try {
             if ($dbTotal === 0 && $fallbackHasResults) {
                 if (!empty($qRaw) && !empty($lokasiRaw)) {
-                    $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di %s. Berikut hasil dari lokasi lain:', $qRaw, $lokasiRaw);
+                    $fallback_note = sprintf(
+                        'Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di %s. Berikut hasil dari lokasi lain:',
+                        $qRaw,
+                        $lokasiRaw
+                    );
                 } elseif (!empty($qRaw)) {
-                    $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di database. Berikut hasil di lokasi lain:', $qRaw);
+                    $fallback_note = sprintf(
+                        'Hasil dari sumber lain karena tidak ditemukan lowongan "%s" di database. Berikut hasil di lokasi lain:',
+                        $qRaw
+                    );
                 } elseif (!empty($lokasiRaw)) {
-                    $fallback_note = sprintf('Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:', $lokasiRaw);
+                    $fallback_note = sprintf(
+                        'Hasil dari sumber lain karena tidak ditemukan lowongan di %s. Berikut hasil dari lokasi lain:',
+                        $lokasiRaw
+                    );
                 } else {
                     $fallback_note = 'Hasil dari sumber lain karena tidak ditemukan di database.';
                 }
@@ -235,21 +263,21 @@ class SearchController extends Controller
 
                 if ($hasProfanity) {
                     Log::info('Blocked profane search (slug not saved)', [
-                        'q_present' => $qRaw !== '' ? true : false,
+                        'q_present'      => $qRaw !== '' ? true : false,
                         'lokasi_present' => $lokasiRaw !== '' ? true : false,
-                        'ip' => request()->ip(),
-                        'ua' => substr(request()->header('User-Agent', ''), 0, 255),
+                        'ip'             => request()->ip(),
+                        'ua'             => substr(request()->header('User-Agent', ''), 0, 255),
                     ]);
                 } else {
                     SearchLog::create([
-                        'q' => Str::limit($qRaw, 255),
-                        'params' => json_encode([
+                        'q'           => Str::limit($qRaw, 255),
+                        'params'      => json_encode([
                             'lokasi' => $lokasiRaw,
                             'wfh'    => $wfh ? 1 : 0,
                         ]),
                         'result_count' => method_exists($jobs, 'total') ? (int)$jobs->total() : 0,
-                        'user_ip' => request()->ip(),
-                        'user_agent' => substr(request()->header('User-Agent', ''), 0, 255),
+                        'user_ip'     => request()->ip(),
+                        'user_agent'  => substr(request()->header('User-Agent', ''), 0, 255),
                     ]);
                 }
             }
@@ -258,13 +286,13 @@ class SearchController extends Controller
         }
 
         return view('cari', [
-            'jobs'      => $jobs,
-            'q'         => mb_strtolower($qRaw),
-            'lokasi'    => mb_strtolower($lokasiRaw),
-            'qRaw'      => $qRaw,
-            'lokasiRaw' => $lokasiRaw,
-            'wfh'       => $wfh ? '1' : '0',
-            'fallback_note' => $fallback_note,
+            'jobs'              => $jobs,
+            'q'                 => mb_strtolower($qRaw),
+            'lokasi'            => mb_strtolower($lokasiRaw),
+            'qRaw'              => $qRaw,
+            'lokasiRaw'         => $lokasiRaw,
+            'wfh'               => $wfh ? '1' : '0',
+            'fallback_note'     => $fallback_note,
             'external_rendered' => $external_rendered,
         ]);
     }
@@ -279,7 +307,7 @@ class SearchController extends Controller
     protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 21, Request $request = null)
     {
         $request = $request ?: request();
-        $page = max(1, (int) $request->query('page', 1));
+        $page = max(1, (int)$request->query('page', 1));
 
         $query = Job::query()
             ->where('status', 'published')
@@ -321,19 +349,22 @@ class SearchController extends Controller
             } catch (\Throwable $e) {
                 $dateParsed = null;
             }
+
             return (object)[
-                'id' => $job->id,
-                'title' => $job->title,
-                'company' => $job->company,
-                'location' => $job->location ?? $job->job_location ?? null,
-                'apply_url' => url('/loker/'.$job->id),
-                'url' => url('/loker/'.$job->id),
-                'description' => null,
-                'date_posted' => $dateParsed,
-                'source' => 'db',
-                'raw' => $job,
-                'is_external' => false,
-                'dedupe_key' => $job->final_url ? (string)$job->final_url : ($job->identifier_value ? (string)$job->identifier_value : null),
+                'id'         => $job->id,
+                'title'      => $job->title,
+                'company'    => $job->company,
+                'location'   => $job->location ?? $job->job_location ?? null,
+                'apply_url'  => url('/loker/' . $job->id),
+                'url'        => url('/loker/' . $job->id),
+                'description'=> null,
+                'date_posted'=> $dateParsed,
+                'source'     => 'db',
+                'raw'        => $job,
+                'is_external'=> false,
+                'dedupe_key' => $job->final_url
+                    ? (string)$job->final_url
+                    : ($job->identifier_value ? (string)$job->identifier_value : null),
             ];
         });
 
@@ -345,15 +376,27 @@ class SearchController extends Controller
         }
 
         // DB has results -> enrich by fetching Careerjet to merge (dedupe + sort)
-        $maxPagesCap = 5; // <= 5 pages total
-        $externalFetchLimit = $perPage * $maxPagesCap; // fetch up to perPage * maxPages (21 * 5 = 105)
+        $maxPagesCap = 5;
+        $externalFetchLimit = $perPage * $maxPagesCap; // up to 105
         $careerjet = $this->fetchCareerjetResultsCached($qRaw, $lokasiRaw, 1, $externalFetchLimit);
         $externalItems = collect($careerjet['items'] ?? []);
         $externalTotalRaw = (int)($careerjet['total'] ?? $externalItems->count());
 
         // Build dedupe set from DB (final_url + identifier_value)
-        $existingUrls = Job::query()->whereNotNull('final_url')->pluck('final_url')->map(function($u){ return (string)$u; })->filter()->values()->all();
-        $existingIds = Job::query()->whereNotNull('identifier_value')->pluck('identifier_value')->map(function($v){ return (string)$v; })->filter()->values()->all();
+        $existingUrls = Job::query()
+            ->whereNotNull('final_url')
+            ->pluck('final_url')
+            ->map(function ($u) {
+                return (string)$u;
+            })->filter()->values()->all();
+
+        $existingIds = Job::query()
+            ->whereNotNull('identifier_value')
+            ->pluck('identifier_value')
+            ->map(function ($v) {
+                return (string)$v;
+            })->filter()->values()->all();
+
         $existingSet = array_merge($existingUrls, $existingIds);
 
         // Map external items into same object shape and dedupe careerjet items first
@@ -375,25 +418,31 @@ class SearchController extends Controller
             if ($dedupeKey && (in_array($dedupeKey, $existingSet, true) || in_array($dedupeKey, $seenExternalKeys, true))) {
                 continue;
             }
-            if ($dedupeKey) $seenExternalKeys[] = $dedupeKey;
+            if ($dedupeKey) {
+                $seenExternalKeys[] = $dedupeKey;
+            }
 
             $dateParsed = null;
             if (!empty($ext['date_posted'])) {
-                try { $dateParsed = Carbon::parse($ext['date_posted']); } catch (\Throwable $e) { $dateParsed = null; }
+                try {
+                    $dateParsed = Carbon::parse($ext['date_posted']);
+                } catch (\Throwable $e) {
+                    $dateParsed = null;
+                }
             }
 
             $mappedExternal->push((object)[
-                'id' => $ext['raw']['id'] ?? null,
-                'title' => $ext['title'] ?? 'No title',
-                'company' => $ext['company'] ?? null,
-                'location' => $ext['location'] ?? null,
-                'apply_url' => $ext['apply_url'] ?? $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
-                'url' => $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
-                'description' => isset($ext['description']) ? strip_tags($ext['description']) : null,
-                'date_posted' => $dateParsed,
-                'source' => $ext['source'] ?? 'careerjet',
-                'raw' => $ext['raw'] ?? null,
-                'is_external' => true,
+                'id'         => $ext['raw']['id'] ?? null,
+                'title'      => $ext['title'] ?? 'No title',
+                'company'    => $ext['company'] ?? null,
+                'location'   => $ext['location'] ?? null,
+                'apply_url'  => $ext['apply_url'] ?? $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
+                'url'        => $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
+                'description'=> isset($ext['description']) ? strip_tags($ext['description']) : null,
+                'date_posted'=> $dateParsed,
+                'source'     => $ext['source'] ?? 'careerjet',
+                'raw'        => $ext['raw'] ?? null,
+                'is_external'=> true,
                 'dedupe_key' => $dedupeKey,
             ]);
         }
@@ -402,11 +451,12 @@ class SearchController extends Controller
         $minExternalTarget = 10;
         if ($mappedExternal->count() < $minExternalTarget) {
             try {
-                // fetch Jooble candidates (we'll ask up to externalFetchLimit so we have room)
                 $joobleResult = $this->fetchJoobleResultsCached($qRaw, $lokasiRaw, 1, $externalFetchLimit);
                 $joobleItems = collect($joobleResult['items'] ?? []);
                 foreach ($joobleItems as $j) {
-                    if ($mappedExternal->count() >= $minExternalTarget) break;
+                    if ($mappedExternal->count() >= $minExternalTarget) {
+                        break;
+                    }
 
                     // compute dedupe key for jooble item
                     $dedupeKey = null;
@@ -425,25 +475,31 @@ class SearchController extends Controller
                     if ($dedupeKey && (in_array($dedupeKey, $existingSet, true) || in_array($dedupeKey, $seenExternalKeys, true))) {
                         continue;
                     }
-                    if ($dedupeKey) $seenExternalKeys[] = $dedupeKey;
+                    if ($dedupeKey) {
+                        $seenExternalKeys[] = $dedupeKey;
+                    }
 
                     $dateParsed = null;
                     if (!empty($j['date_posted'])) {
-                        try { $dateParsed = Carbon::parse($j['date_posted']); } catch (\Throwable $e) { $dateParsed = null; }
+                        try {
+                            $dateParsed = Carbon::parse($j['date_posted']);
+                        } catch (\Throwable $e) {
+                            $dateParsed = null;
+                        }
                     }
 
                     $mappedExternal->push((object)[
-                        'id' => $j['raw']['id'] ?? null,
-                        'title' => $j['title'] ?? 'No title',
-                        'company' => $j['company'] ?? null,
-                        'location' => $j['location'] ?? null,
-                        'apply_url' => $j['apply_url'] ?? $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
-                        'url' => $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
-                        'description' => isset($j['description']) ? strip_tags($j['description']) : null,
-                        'date_posted' => $dateParsed,
-                        'source' => $j['source'] ?? 'jooble',
-                        'raw' => $j['raw'] ?? null,
-                        'is_external' => true,
+                        'id'         => $j['raw']['id'] ?? null,
+                        'title'      => $j['title'] ?? 'No title',
+                        'company'    => $j['company'] ?? null,
+                        'location'   => $j['location'] ?? null,
+                        'apply_url'  => $j['apply_url'] ?? $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
+                        'url'        => $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
+                        'description'=> isset($j['description']) ? strip_tags($j['description']) : null,
+                        'date_posted'=> $dateParsed,
+                        'source'     => $j['source'] ?? 'jooble',
+                        'raw'        => $j['raw'] ?? null,
+                        'is_external'=> true,
                         'dedupe_key' => $dedupeKey,
                     ]);
                 }
@@ -453,14 +509,13 @@ class SearchController extends Controller
         }
 
         // Merge DB items and external items and sort by date_posted desc (nulls last)
-        $merged = $dbItems->concat($mappedExternal)->sortByDesc(function ($it) {
-            return $it->date_posted ? $it->date_posted->getTimestamp() : 0;
-        })->values();
+        $merged = $dbItems->concat($mappedExternal)
+            ->sortByDesc(function ($it) {
+                return $it->date_posted ? $it->date_posted->getTimestamp() : 0;
+            })->values();
 
         // Compute combined total — cap to maxPagesCap pages
         $combinedTotalEstimate = $dbTotal + $externalTotalRaw;
-        // note: if we topped up from Jooble, $externalTotalRaw may not reflect the final merged external count,
-        // but we keep a conservative cap based on estimate and max pages.
         $totalCapped = min($combinedTotalEstimate, $perPage * $maxPagesCap);
 
         // Now produce a paginator page slice from $merged
@@ -474,7 +529,7 @@ class SearchController extends Controller
 
         // Build LengthAwarePaginator with merged slice
         $paginator = new LengthAwarePaginator($sliced, $totalCapped, $perPage, $page, [
-            'path' => $request->url(),
+            'path'  => $request->url(),
             'query' => $request->query(),
         ]);
 
@@ -505,7 +560,8 @@ class SearchController extends Controller
 
         if (!empty($result['items'])) {
             try {
-                $cacheStore->put($cacheKey, $result, now()->addMinutes(30));
+                // **Cache changed to 12 hours**
+                $cacheStore->put($cacheKey, $result, now()->addHours(12));
             } catch (\Throwable $e) {
                 Log::warning('fetchCareerjetResultsCached: failed caching: ' . $e->getMessage());
             }
@@ -522,20 +578,20 @@ class SearchController extends Controller
     {
         $client = new CareerjetClient();
         $params = [
-            'keywords' => $q ?: '',
-            'location' => $lokasi ?: '',
-            'page' => $page,
-            'page_size' => $pageSize,
-            'user_ip' => request()->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
+            'keywords'   => $q ?: '',
+            'location'   => $lokasi ?: '',
+            'page'       => $page,
+            'page_size'  => $pageSize,
+            'user_ip'    => request()->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
             'user_agent' => request()->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
-            'locale_code' => 'id_ID',
-            'sort' => 'date',
+            'locale_code'=> 'id_ID',
+            'sort'       => 'date',
         ];
 
         $resp = $client->query($params, config('app.url'), $params['user_agent']);
 
         if (!is_array($resp) || (isset($resp['__error']) && $resp['__error'])) {
-            Log::warning("Careerjet API ERROR", ['resp' => $resp, 'params'=>$params]);
+            Log::warning("Careerjet API ERROR", ['resp' => $resp, 'params' => $params]);
             return ['items' => [], 'total' => 0];
         }
 
@@ -545,33 +601,44 @@ class SearchController extends Controller
         $items = [];
         $count = 0;
         foreach ($jobsRaw as $j) {
-            if ($count >= $pageSize) break;
+            if ($count >= $pageSize) {
+                break;
+            }
+
             $title = trim($j['title'] ?? 'No title');
             $company = $j['company'] ?? ($j['site'] ?? null);
             $location = $j['locations'] ?? ($j['location'] ?? null);
             $applyUrl = $j['apply_url'] ?? ($j['url'] ?? null);
             $dateRaw = $j['date'] ?? null;
+
             $desc = '';
             if (!empty($j['description'])) {
                 $desc = CareerjetParser::sanitizeHtml($j['description']);
             } elseif (!empty($j['description_excerpt'])) {
                 $desc = CareerjetParser::sanitizeHtml('<p>' . htmlentities($j['description_excerpt']) . '</p>');
             }
+
             $datePosted = null;
             if (!empty($dateRaw)) {
-                try { $datePosted = Carbon::parse($dateRaw)->toDateTimeString(); } catch (\Throwable $e) { $datePosted = null; }
+                try {
+                    $datePosted = Carbon::parse($dateRaw)->toDateTimeString();
+                } catch (\Throwable $e) {
+                    $datePosted = null;
+                }
             }
+
             $items[] = [
-                'title' => $title,
-                'company' => $company,
-                'location' => $location,
-                'apply_url' => $applyUrl,
-                'url' => $applyUrl,
+                'title'       => $title,
+                'company'     => $company,
+                'location'    => $location,
+                'apply_url'   => $applyUrl,
+                'url'         => $applyUrl,
                 'description' => $desc,
                 'date_posted' => $datePosted,
-                'source' => 'careerjet',
-                'raw' => $j,
+                'source'      => 'careerjet',
+                'raw'         => $j,
             ];
+
             $count++;
         }
 
@@ -588,54 +655,62 @@ class SearchController extends Controller
         foreach ($tries as $tryLok) {
             $p = $this->fallbackCareerjetSearchSingle($q, $tryLok, $page, $perPage, $request);
             $total = method_exists($p, 'total') ? (int)$p->total() : (is_countable($p) ? count($p) : 0);
-            if ($total > 0) return $p;
+            if ($total > 0) {
+                return $p;
+            }
         }
 
         // Careerjet gave nothing -> try Jooble as last resort
         $maxPages = 5;
-        $fetchLimit = max(1, $perPage * $maxPages); // fetch up to perPage * maxPages (21 * 5 = 105)
+        $fetchLimit = max(1, $perPage * $maxPages); // up to 105
         $joobleResult = $this->fetchJoobleResultsCached($q, $lokasi, 1, $fetchLimit);
 
         $rawItems = $joobleResult['items'] ?? [];
         $totalHits = (int)($joobleResult['total'] ?? count($rawItems));
 
         if (empty($rawItems)) {
-            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
         }
 
         // Map to objects
         $items = collect($rawItems)->map(function ($it) {
             $dateParsed = null;
             if (!empty($it['date_posted'])) {
-                try { $dateParsed = Carbon::parse($it['date_posted']); } catch (\Throwable $e) { $dateParsed = null; }
+                try {
+                    $dateParsed = Carbon::parse($it['date_posted']);
+                } catch (\Throwable $e) {
+                    $dateParsed = null;
+                }
             }
             return (object)[
-                'title' => $it['title'] ?? 'No title',
-                'company' => $it['company'] ?? null,
-                'location' => $it['location'] ?? null,
-                'apply_url' => $it['apply_url'] ?? $it['url'] ?? null,
-                'url' => $it['url'] ?? $it['apply_url'] ?? null,
-                'description' => $it['description'] ?? null,
-                'date_posted' => $dateParsed,
-                'source' => 'jooble',
-                'raw' => $it['raw'] ?? null,
-                'is_external' => true,
+                'title'      => $it['title'] ?? 'No title',
+                'company'    => $it['company'] ?? null,
+                'location'   => $it['location'] ?? null,
+                'apply_url'  => $it['apply_url'] ?? $it['url'] ?? null,
+                'url'        => $it['url'] ?? $it['apply_url'] ?? null,
+                'description'=> $it['description'] ?? null,
+                'date_posted'=> $dateParsed,
+                'source'     => 'jooble',
+                'raw'        => $it['raw'] ?? null,
+                'is_external'=> true,
             ];
         });
 
         $totalCapped = min($totalHits, $perPage * $maxPages);
 
-        return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+        return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, [
+            'path' => $request->url(),
+            'query'=> $request->query(),
+        ]);
     }
 
     protected function fallbackCareerjetSearchSingle(string $q, string $lokasi, int $page, int $perPage, Request $request): LengthAwarePaginator
     {
-        // We want Careerjet fallback to be able to provide up to perPage * maxPages items (21 * 5 = 105).
         $perFetch = max(1, $perPage * 5);
         $cacheKey = 'careerjet_fallback:' . md5("q={$q}|lokasi={$lokasi}|page={$page}|per={$perFetch}");
         $cacheStore = Cache::store('redis');
 
-        Log::debug('fallbackCareerjetSearchSingle called', ['q'=>$q, 'lokasi'=>$lokasi, 'page'=>$page, 'per'=>$perFetch]);
+        Log::debug('fallbackCareerjetSearchSingle called', ['q' => $q, 'lokasi' => $lokasi, 'page' => $page, 'per' => $perFetch]);
 
         $cached = null;
         try {
@@ -646,7 +721,7 @@ class SearchController extends Controller
 
         if (is_array($cached) && !empty($cached)) {
             $rawItems = $cached['items'] ?? [];
-            $total = (int) ($cached['total'] ?? count($rawItems));
+            $total = (int)($cached['total'] ?? count($rawItems));
             $items = collect($rawItems)->map(function ($it) {
                 $title = $it['title'] ?? ($it['job_title'] ?? 'No title');
                 $company = $it['company'] ?? null;
@@ -654,12 +729,22 @@ class SearchController extends Controller
                 $applyUrl = $it['apply_url'] ?? ($it['url'] ?? null);
                 $datePosted = null;
                 if (!empty($it['date_posted'])) {
-                    try { $datePosted = Carbon::parse($it['date_posted']); } catch (\Throwable $e) { $datePosted = null; }
+                    try {
+                        $datePosted = Carbon::parse($it['date_posted']);
+                    } catch (\Throwable $e) {
+                        $datePosted = null;
+                    }
                 }
                 $obj = (object)[
-                    'title'=>$title,'company'=>$company,'location'=>$location,'apply_url'=>$applyUrl,
-                    'url'=>$applyUrl,'description'=>$it['description'] ?? null,'date_posted'=>$datePosted,
-                    'source'=>$it['source'] ?? 'careerjet','raw'=>$it['raw'] ?? null
+                    'title'      => $title,
+                    'company'    => $company,
+                    'location'   => $location,
+                    'apply_url'  => $applyUrl,
+                    'url'        => $applyUrl,
+                    'description'=> $it['description'] ?? null,
+                    'date_posted'=> $datePosted,
+                    'source'     => $it['source'] ?? 'careerjet',
+                    'raw'        => $it['raw'] ?? null,
                 ];
                 $obj->is_external = true;
                 return $obj;
@@ -669,27 +754,33 @@ class SearchController extends Controller
             $maxPages = 5;
             $totalCapped = min($total, $perPage * $maxPages);
 
-            return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+            return new LengthAwarePaginator($items, $totalCapped, $perPage, $page, [
+                'path' => $request->url(),
+                'query'=> $request->query(),
+            ]);
         }
 
         // Call Careerjet client requesting up to $perFetch items (server-side)
         $client = new CareerjetClient();
         $params = [
-            'keywords' => $q ?: '',
-            'location' => $lokasi ?: '',
-            'page' => 1, // we'll request first page but ask for many items via page_size
-            'page_size' => $perFetch,
-            'user_ip' => $request->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
+            'keywords'   => $q ?: '',
+            'location'   => $lokasi ?: '',
+            'page'       => 1,
+            'page_size'  => $perFetch,
+            'user_ip'    => $request->ip() ?: env('CAREERJET_USER_IP', '127.0.0.1'),
             'user_agent' => $request->header('User-Agent', env('CAREERJET_USER_AGENT', 'TeleworksBot/1.0')),
-            'locale_code' => 'id_ID',
-            'sort' => 'date',
+            'locale_code'=> 'id_ID',
+            'sort'       => 'date',
         ];
 
         $resp = $client->query($params, config('app.url'), $params['user_agent']);
 
         if (!is_array($resp) || (isset($resp['__error']) && $resp['__error'])) {
-            Log::warning("Careerjet fallback API ERROR", ['resp' => $resp, 'params'=>$params]);
-            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+            Log::warning("Careerjet fallback API ERROR", ['resp' => $resp, 'params' => $params]);
+            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, [
+                'path' => $request->url(),
+                'query'=> $request->query(),
+            ]);
         }
 
         $jobsRaw = $resp['jobs'] ?? [];
@@ -698,26 +789,43 @@ class SearchController extends Controller
         $items = collect();
         $count = 0;
         foreach ($jobsRaw as $j) {
-            if ($count >= $perFetch) break;
+            if ($count >= $perFetch) {
+                break;
+            }
+
             $title = trim($j['title'] ?? 'No title');
             $company = $j['company'] ?? ($j['site'] ?? null);
             $location = $j['locations'] ?? ($j['location'] ?? null);
             $applyUrl = $j['apply_url'] ?? ($j['url'] ?? null);
             $dateRaw = $j['date'] ?? null;
+
             $desc = '';
             if (!empty($j['description'])) {
                 $desc = CareerjetParser::sanitizeHtml($j['description']);
             } elseif (!empty($j['description_excerpt'])) {
                 $desc = CareerjetParser::sanitizeHtml('<p>' . htmlentities($j['description_excerpt']) . '</p>');
             }
+
             $datePosted = null;
             if (!empty($dateRaw)) {
-                try { $datePosted = Carbon::parse($dateRaw); } catch (\Throwable $e) { $datePosted = null; }
+                try {
+                    $datePosted = Carbon::parse($dateRaw);
+                } catch (\Throwable $e) {
+                    $datePosted = null;
+                }
             }
+
             $obj = (object)[
-                'title'=>$title,'company'=>$company,'location'=>$location,'apply_url'=>$applyUrl,
-                'url'=>$applyUrl,'description'=>$desc,'date_posted'=>$datePosted,
-                'source'=>'careerjet','raw'=>$j,'is_external'=>true
+                'title'      => $title,
+                'company'    => $company,
+                'location'   => $location,
+                'apply_url'  => $applyUrl,
+                'url'        => $applyUrl,
+                'description'=> $desc,
+                'date_posted'=> $datePosted,
+                'source'     => 'careerjet',
+                'raw'        => $j,
+                'is_external'=> true,
             ];
             $items->push($obj);
             $count++;
@@ -727,33 +835,38 @@ class SearchController extends Controller
         $maxPages = 5;
         $totalCapped = min(is_numeric($totalHits) ? (int)$totalHits : count($jobsRaw), $perPage * $maxPages);
 
-        $paginator = new LengthAwarePaginator($items, $totalCapped, $perPage, $page, ['path'=>$request->url(), 'query'=>$request->query()]);
+        $paginator = new LengthAwarePaginator($items, $totalCapped, $perPage, $page, [
+            'path' => $request->url(),
+            'query'=> $request->query(),
+        ]);
 
         if ($items->count() > 0) {
             try {
                 $cachePayload = [
                     'items' => $items->map(function ($it) {
                         return [
-                            'title' => $it->title,
-                            'company' => $it->company,
-                            'location' => $it->location,
-                            'apply_url' => $it->apply_url,
-                            'url' => $it->url,
+                            'title'       => $it->title,
+                            'company'     => $it->company,
+                            'location'    => $it->location,
+                            'apply_url'   => $it->apply_url,
+                            'url'         => $it->url,
                             'description' => $it->description,
                             'date_posted' => $it->date_posted ? $it->date_posted->toDateTimeString() : null,
-                            'source' => $it->source,
-                            'raw' => $it->raw,
+                            'source'      => $it->source,
+                            'raw'         => $it->raw,
                         ];
                     })->toArray(),
                     'total' => $totalCapped,
                 ];
-                Cache::store('redis')->put($cacheKey, $cachePayload, now()->addMinutes(30));
+
+                // **Cache changed to 12 hours**
+                Cache::store('redis')->put($cacheKey, $cachePayload, now()->addHours(12));
                 Log::debug("Careerjet fallback: cached key {$cacheKey}");
             } catch (\Throwable $e) {
                 Log::warning("Careerjet fallback: FAILED caching {$cacheKey} : " . $e->getMessage());
             }
         } else {
-            Log::debug("Careerjet fallback: empty result for params", ['params'=>$params]);
+            Log::debug("Careerjet fallback: empty result for params", ['params' => $params]);
         }
 
         return $paginator;
@@ -782,7 +895,8 @@ class SearchController extends Controller
 
         if (!empty($result['items'])) {
             try {
-                $cache->put($cacheKey, $result, now()->addMinutes(30));
+                // **Cache changed to 12 hours**
+                $cache->put($cacheKey, $result, now()->addHours(12));
             } catch (\Throwable $e) {
                 Log::warning('fetchJoobleResultsCached: failed caching: ' . $e->getMessage());
             }
@@ -821,12 +935,12 @@ class SearchController extends Controller
         try {
             $res = Http::timeout(12)->acceptJson()->post($endpoint, $payload);
         } catch (\Throwable $e) {
-            Log::warning('fetchJoobleResults: Jooble API request failed: ' . $e->getMessage(), ['q'=>$q,'lokasi'=>$lokasi]);
+            Log::warning('fetchJoobleResults: Jooble API request failed: ' . $e->getMessage(), ['q' => $q, 'lokasi' => $lokasi]);
             return ['items' => [], 'total' => 0];
         }
 
         if (!$res->ok()) {
-            Log::warning('fetchJoobleResults: Jooble API non-200: ' . $res->status(), ['q'=>$q,'lokasi'=>$lokasi]);
+            Log::warning('fetchJoobleResults: Jooble API non-200: ' . $res->status(), ['q' => $q, 'lokasi' => $lokasi]);
             return ['items' => [], 'total' => 0];
         }
 
@@ -841,7 +955,9 @@ class SearchController extends Controller
         $items = [];
         $count = 0;
         foreach ($jobsRaw as $j) {
-            if ($count >= $pageSize) break;
+            if ($count >= $pageSize) {
+                break;
+            }
 
             $title = trim($j['title'] ?? $j['position'] ?? 'No title');
             $company = $j['company'] ?? null;
@@ -852,19 +968,23 @@ class SearchController extends Controller
 
             $datePosted = null;
             if (!empty($dateRaw)) {
-                try { $datePosted = Carbon::parse($dateRaw)->toDateTimeString(); } catch (\Throwable $e) { $datePosted = null; }
+                try {
+                    $datePosted = Carbon::parse($dateRaw)->toDateTimeString();
+                } catch (\Throwable $e) {
+                    $datePosted = null;
+                }
             }
 
             $items[] = [
-                'title' => $title,
-                'company' => $company,
-                'location' => $location,
-                'apply_url' => $applyUrl,
-                'url' => $applyUrl,
+                'title'       => $title,
+                'company'     => $company,
+                'location'    => $location,
+                'apply_url'   => $applyUrl,
+                'url'         => $applyUrl,
                 'description' => $snippet ? strip_tags($snippet) : null,
                 'date_posted' => $datePosted,
-                'source' => 'jooble',
-                'raw' => $j,
+                'source'      => 'jooble',
+                'raw'         => $j,
             ];
             $count++;
         }
@@ -889,12 +1009,14 @@ class SearchController extends Controller
                        ->orWhere('description', 'like', "%{$qRaw}%");
                 });
             }
+
             if ($lokasiRaw !== '') {
                 $query->where(function ($qq) use ($lokasiRaw) {
                     $qq->where('location', 'like', "%{$lokasiRaw}%")
                        ->orWhere('job_location', 'like', "%{$lokasiRaw}%");
                 });
             }
+
             return (int)$query->count();
         } catch (\Throwable $e) {
             Log::warning('countDbMatches failed: ' . $e->getMessage());
@@ -909,7 +1031,9 @@ class SearchController extends Controller
     private function loadProfanityList(): array
     {
         static $list = null;
-        if ($list !== null) return $list;
+        if ($list !== null) {
+            return $list;
+        }
 
         $path = storage_path('app/profanity.json');
         if (!File::exists($path)) {
@@ -925,8 +1049,10 @@ class SearchController extends Controller
             $arr = [];
         }
 
-        $list = array_values(array_filter(array_map(function($w) {
-            if (!is_string($w)) return null;
+        $list = array_values(array_filter(array_map(function ($w) {
+            if (!is_string($w)) {
+                return null;
+            }
             $v = trim(mb_strtolower($w, 'UTF-8'));
             return $v === '' ? null : $v;
         }, $arr)));
@@ -937,7 +1063,7 @@ class SearchController extends Controller
     private function normalizeForProfanity(string $s): string
     {
         $s = mb_strtolower($s, 'UTF-8');
-        $s = strtr($s, ['0'=>'o','1'=>'i','3'=>'e','@'=>'a','4'=>'a','$'=>'s','5'=>'s','7'=>'t']);
+        $s = strtr($s, ['0' => 'o', '1' => 'i', '3' => 'e', '@' => 'a', '4' => 'a', '$' => 's', '5' => 's', '7' => 't']);
         $s = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $s);
         $s = preg_replace('/\s+/', ' ', $s);
         return trim($s);
@@ -945,27 +1071,39 @@ class SearchController extends Controller
 
     private function containsProfanity(?string $text): bool
     {
-        if (!$text) return false;
+        if (!$text) {
+            return false;
+        }
+
         $textNorm = ' ' . $this->normalizeForProfanity($text) . ' ';
         $words = $this->loadProfanityList();
-        if (empty($words)) return false;
+        if (empty($words)) {
+            return false;
+        }
 
         foreach ($words as $bad) {
-            if ($bad === '') continue;
+            if ($bad === '') {
+                continue;
+            }
+
             $pattern = '/\b' . preg_quote($bad, '/') . '\b/iu';
             if (preg_match($pattern, $textNorm)) {
                 return true;
             }
+
             if (mb_strpos($textNorm, ' ' . $bad . ' ') !== false) {
                 return true;
             }
         }
+
         return false;
     }
 
     private function cleanAndSlug(?string $text, string $type = 'q'): string
     {
-        if (!$text) return '';
+        if (!$text) {
+            return '';
+        }
 
         if ($this->containsProfanity($text)) {
             return $type === 'lokasi' ? 'jakarta' : 'sales';
