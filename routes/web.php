@@ -12,6 +12,10 @@ use App\Http\Controllers\Seeker\DashboardController as SeekerDashboardController
 use App\Http\Controllers\Seeker\ProfileController as SeekerProfileController;
 use App\Http\Controllers\Seeker\ApplicationController as SeekerApplicationController;
 use App\Http\Controllers\Seeker\SavedController as SeekerSavedController;
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\CompanyController as AdminCompanyController;
+use App\Http\Controllers\Admin\JobController as AdminJobController;
+use App\Http\Controllers\Admin\ReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,11 +59,11 @@ Route::group([
     Route::post('company', [App\Http\Controllers\Employer\CompanyController::class, 'update'])->name('company.update');
 
     // Team management (resource, without show)
-   // Route::resource('team', App\Http\Controllers\Employer\TeamController::class)->except(['show']);
+    // Route::resource('team', App\Http\Controllers\Employer\TeamController::class)->except(['show']);
 
     // Billing (stubs)
-   // Route::get('billing', [App\Http\Controllers\Employer\BillingController::class, 'index'])->name('billing.index');
-   // Route::post('billing/checkout', [App\Http\Controllers\Employer\BillingController::class, 'checkout'])->name('billing.checkout');
+    // Route::get('billing', [App\Http\Controllers\Employer\BillingController::class, 'index'])->name('billing.index');
+    // Route::post('billing/checkout', [App\Http\Controllers\Employer\BillingController::class, 'checkout'])->name('billing.checkout');
 });
 
 /*
@@ -121,7 +125,6 @@ Route::middleware(['auth','role:company|admin'])->group(function () {
     Route::patch('/company/{company}', [CompanyController::class, 'update'])->name('companies.update');
 });
 
-
 /*
 |--------------------------------------------------------------------------
 | Public company profile
@@ -144,9 +147,28 @@ Route::middleware('auth')->group(function () {
 | Admin routes
 |--------------------------------------------------------------------------
 */
-//Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function(){
-//    Route::get('/', [\App\Http\Controllers\Admin\AdminController::class,'dashboard'])->name('dashboard');
-//});
+Route::middleware(['auth','role:admin'])->prefix('admin')->name('admin.')->group(function(){
+    Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+
+    // Companies
+    Route::get('companies', [AdminCompanyController::class,'index'])->name('companies.index');
+    Route::get('companies/{company}', [AdminCompanyController::class,'show'])->name('companies.show');
+    Route::post('companies/{company}/verify', [AdminCompanyController::class,'verify'])->name('companies.verify');
+    Route::post('companies/{company}/unverify', [AdminCompanyController::class,'unverify'])->name('companies.unverify');
+    Route::post('companies/{company}/suspend', [AdminCompanyController::class,'suspend'])->name('companies.suspend');
+    Route::post('companies/{company}/unsuspend', [AdminCompanyController::class,'unsuspend'])->name('companies.unsuspend');
+
+    // Jobs
+    Route::get('jobs', [AdminJobController::class,'index'])->name('jobs.index');
+    Route::get('jobs/{job}/edit', [AdminJobController::class,'edit'])->name('jobs.edit');
+    Route::put('jobs/{job}', [AdminJobController::class,'update'])->name('jobs.update');
+    Route::delete('jobs/{job}', [AdminJobController::class,'destroy'])->name('jobs.destroy');
+
+    // Reports
+    Route::get('reports', [ReportController::class,'index'])->name('reports.index');
+    Route::get('reports/{report}', [ReportController::class,'show'])->name('reports.show');
+    Route::post('reports/{report}/resolve', [ReportController::class,'resolve'])->name('reports.resolve');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -228,6 +250,9 @@ Route::post('/logout', function () {
     Auth::logout();
     return redirect('/');
 })->name('logout')->middleware('auth');
+
+// hanya user login bisa kirim report
+Route::middleware(['auth', 'throttle:10,1'])->post('/reports', [ReportController::class, 'store'])->name('reports.store');
 
 /*
 |--------------------------------------------------------------------------

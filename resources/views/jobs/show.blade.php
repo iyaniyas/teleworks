@@ -126,6 +126,65 @@ body .container { padding-bottom: 6rem; } /* room for centered CTA */
     {!! $job->description_html ?? ($job->description ? nl2br(e($job->description)) : '<em class="tw-muted">Deskripsi belum tersedia.</em>') !!}
   </div>
 
+{{-- REPORT JOB BUTTON (letakkan dekat CTA atau di bawah title) --}}
+<div class="mt-3">
+  @auth
+    <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reportJobModal">
+      Laporkan Lowongan
+    </button>
+  @else
+    <a href="{{ route('login') }}" class="btn btn-outline-danger">Login untuk Laporkan</a>
+  @endauth
+</div>
+
+{{-- REPORT JOB MODAL --}}
+<div class="modal fade" id="reportJobModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Laporkan Lowongan: {{ $job->title }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+
+      <form action="{{ route('reports.store') }}" method="POST">
+        @csrf
+        <input type="hidden" name="reportable_type" value="{{ addslashes(\App\Models\Job::class) }}">
+        <input type="hidden" name="reportable_id" value="{{ $job->id }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Alasan pelaporan <small class="text-muted">(wajib)</small></label>
+            <textarea name="reason" class="form-control bg-transparent text-light border-secondary" rows="4" required>{{ old('reason') }}</textarea>
+          </div>
+
+          <div class="mb-2 small-muted">
+            Contoh alasan: lowongan palsu, penipuan, konten tidak pantas, email/phone contact mencurigakan, dsb.
+          </div>
+
+          @if ($errors->has('reason'))
+            <div class="alert alert-danger">{{ $errors->first('reason') }}</div>
+          @endif
+        </div>
+
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-danger">Kirim Laporan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{{-- Jika server-side validasi gagal, auto-open modal supaya user lihat error --}}
+@if($errors->has('reason') && old('reportable_id') == $job->id)
+  <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      var el = document.getElementById('reportJobModal');
+      if(el) new bootstrap.Modal(el).show();
+    });
+  </script>
+@endif
+
+
   {{-- If apply_url existed previously, we intentionally removed external CTA; internal apply UI below --}}
   @if(empty($job->apply_url))
   <div class="tw-alert mb-4">Link lamaran eksternal tidak disertakan — gunakan tombol "Lamar Sekarang" di bawah jika tersedia.</div>
