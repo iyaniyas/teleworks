@@ -22,8 +22,29 @@ use App\Http\Controllers\Admin\CompanyController as AdminCompanyController;
 use App\Http\Controllers\Admin\JobController as AdminJobController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 
+use App\Http\Controllers\JobPurchaseController;
+use App\Http\Controllers\MidtransController;
+
+//finish url midtrans
+// finish/unfinish/error pages (user redirect)
+Route::get('/purchase/finish', [JobPurchaseController::class, 'finish'])->name('purchase.finish');
+Route::get('/purchase/unfinish', [JobPurchaseController::class, 'unfinish'])->name('purchase.unfinish');
+Route::get('/purchase/error', [JobPurchaseController::class, 'error'])->name('purchase.error');
+
+// webhook (public) — keep in api.php or web.php but ensure CSRF not blocking
+Route::post('/api/midtrans/webhook', [MidtransController::class, 'webhook'])->name('midtrans.webhook');
+
 // Public report controller
 use App\Http\Controllers\ReportController;
+
+//billing routes
+Route::get('/pricing', function () { return view('pricing'); })->name('pricing');
+
+// Purchase routes (require auth)
+Route::middleware(['web'])->group(function () {
+    Route::get('/purchase/create', [JobPurchaseController::class, 'create'])->name('purchase.create')->middleware('auth');
+    Route::post('/purchase', [JobPurchaseController::class, 'store'])->name('purchase.store')->middleware('auth');
+});
 
 
 /*
