@@ -47,7 +47,7 @@
                 </div>
               </div>
               <div class="text-end">
-                <a href="{{ route('company.edit') }}" class="btn btn-outline-light">Edit Profil</a>
+                <a href="{{ route('employer.company.edit') }}" class="btn btn-outline-light">Edit Profil</a>
                 <a href="{{ route('purchase.create') }}" class="btn btn-outline-light ms-2">Perpanjang</a>
               </div>
             </div>
@@ -124,7 +124,7 @@
               <div class="list-group">
                 <a href="{{ route('employer.jobs.index') }}" class="list-group-item list-group-item-action bg-transparent text-light">Kelola Lowongan</a>
                 <a href="{{ route('employer.applications') }}" class="list-group-item list-group-item-action bg-transparent text-light">Pelamar</a>
-                <a href="{{ route('company.edit') }}" class="list-group-item list-group-item-action bg-transparent text-light">Profil Perusahaan</a>
+                <a href="{{ route('employer.company.edit') }}" class="list-group-item list-group-item-action bg-transparent text-light">Profil Perusahaan</a>
               </div>
             </div>
           </div>

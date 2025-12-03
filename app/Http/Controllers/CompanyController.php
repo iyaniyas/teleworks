@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 
 class CompanyController extends Controller
@@ -20,24 +21,28 @@ class CompanyController extends Controller
     }
 
     /**
-     * Store new company (assign owner, attach pivot, assign role)
+     * Store new company (assign owner, attach pivot, assign role, link to user.company_id)
      */
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name'        => 'required|string|max:255',
             // allow domain with or without scheme by using regex OR just string, keep it flexible
-            'domain' => 'nullable|string|max:255',
+            'domain'      => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'logo' => 'nullable|image|max:2048',
+            'logo'        => 'nullable|image|max:2048',
         ]);
 
         $user = Auth::user();
+        if (! $user) {
+            abort(401, 'Unauthorized');
+        }
 
         // prepare slug, ensure uniqueness
         $baseSlug = Str::slug($request->name);
-        $slug = $baseSlug;
-        $i = 0;
+        $slug     = $baseSlug;
+        $i        = 0;
+
         while (Company::where('slug', $slug)->exists()) {
             $i++;
             $slug = $baseSlug . '-' . Str::random(4);
@@ -48,10 +53,10 @@ class CompanyController extends Controller
         }
 
         $payload = [
-            'owner_id' => $user->id,
-            'name' => $request->name,
-            'slug' => $slug,
-            'domain' => $request->domain,
+            'owner_id'    => $user->id,
+            'name'        => $request->name,
+            'slug'        => $slug,
+            'domain'      => $request->domain,
             'description' => $request->description,
         ];
 
@@ -62,9 +67,21 @@ class CompanyController extends Controller
 
         $company = Company::create($payload);
 
-        // attach owner as company_user pivot
+        // link user -> company (ini yang hilang sebelumnya)
         try {
-            $company->users()->attach($user->id, ['role' => 'owner']);
+            $user->company_id = $company->id;
+            $user->save();
+        } catch (\Throwable $e) {
+            // kalau gagal, jangan putus flow; tapi relasi mungkin tidak tersimpan
+        }
+
+        // attach owner as company_user pivot (jika relasi many-to-many dipakai)
+        try {
+            if (method_exists($company, 'users')) {
+                $company->users()->syncWithoutDetaching([
+                    $user->id => ['role' => 'owner'],
+                ]);
+            }
         } catch (\Throwable $e) {
             // ignore if pivot exists or any pivot error
         }
@@ -78,7 +95,15 @@ class CompanyController extends Controller
             }
         }
 
-        return redirect()->route('companies.show', $company->slug)
+        // kalau employer dashboard ada, arahkan ke sana; kalau tidak, pakai halaman publik company
+        if (Route::has('employer.company.edit')) {
+            return redirect()
+                ->route('employer.company.edit')
+                ->with('success', 'Company created and linked to your account.');
+        }
+
+        return redirect()
+            ->route('companies.show', $company->slug)
             ->with('success', 'Company created and you have been assigned as owner.');
     }
 
@@ -87,7 +112,10 @@ class CompanyController extends Controller
      */
     public function show($slug)
     {
-        $company = Company::where('slug', $slug)->with('jobs')->firstOrFail();
+        $company = Company::where('slug', $slug)
+            ->with('jobs')
+            ->firstOrFail();
+
         return view('companies.show', compact('company'));
     }
 
@@ -118,16 +146,16 @@ class CompanyController extends Controller
         }
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            'slug' => ['nullable','string','max:255', Rule::unique('companies','slug')->ignore($company->id)],
-            'domain' => 'nullable|string|max:255',
+            'name'        => 'required|string|max:255',
+            'slug'        => ['nullable', 'string', 'max:255', Rule::unique('companies', 'slug')->ignore($company->id)],
+            'domain'      => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'logo' => 'nullable|image|max:2048',
+            'logo'        => 'nullable|image|max:2048',
         ]);
 
         $data = [
-            'name' => $request->name,
-            'domain' => $request->domain,
+            'name'        => $request->name,
+            'domain'      => $request->domain,
             'description' => $request->description,
         ];
 
@@ -136,11 +164,18 @@ class CompanyController extends Controller
             $slugCandidate = Str::slug($request->input('slug'));
             // ensure uniqueness
             $slug = $slugCandidate;
-            $i = 0;
-            while (Company::where('slug', $slug)->where('id', '<>', $company->id)->exists()) {
+            $i    = 0;
+            while (
+                Company::where('slug', $slug)
+                    ->where('id', '<>', $company->id)
+                    ->exists()
+            ) {
                 $i++;
                 $slug = $slugCandidate . '-' . Str::random(3);
-                if ($i > 6) { $slug = $slugCandidate . '-' . uniqid(); break; }
+                if ($i > 6) {
+                    $slug = $slugCandidate . '-' . uniqid();
+                    break;
+                }
             }
             $data['slug'] = $slug;
         }
@@ -148,7 +183,11 @@ class CompanyController extends Controller
         if ($request->hasFile('logo')) {
             // delete old logo if exists
             if (!empty($company->logo_path) && Storage::disk('public')->exists($company->logo_path)) {
-                try { Storage::disk('public')->delete($company->logo_path); } catch (\Throwable $e) {}
+                try {
+                    Storage::disk('public')->delete($company->logo_path);
+                } catch (\Throwable $e) {
+                    // ignore
+                }
             }
             $path = $request->file('logo')->store('logos', 'public');
             $data['logo_path'] = $path;
@@ -157,11 +196,15 @@ class CompanyController extends Controller
         $company->update($data);
 
         // redirect to employer dashboard if route exists, else to company show
-        if (function_exists('route') && \Illuminate\Support\Facades\Route::has('employer.dashboard')) {
-            return redirect()->route('employer.dashboard')->with('success', 'Profil perusahaan berhasil diperbarui.');
+        if (Route::has('employer.dashboard')) {
+            return redirect()
+                ->route('employer.dashboard')
+                ->with('success', 'Profil perusahaan berhasil diperbarui.');
         }
 
-        return redirect()->route('companies.show', $company->slug)->with('success', 'Profil perusahaan berhasil diperbarui.');
+        return redirect()
+            ->route('companies.show', $company->slug)
+            ->with('success', 'Profil perusahaan berhasil diperbarui.');
     }
 
     /**
@@ -169,16 +212,31 @@ class CompanyController extends Controller
      */
     protected function canManageCompany($user, Company $company): bool
     {
-        if (!$user) return false;
+        if (!$user) {
+            return false;
+        }
+
         // admin role allowed
-        if (method_exists($user, 'hasRole') && $user->hasRole('admin')) return true;
+        if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
+            return true;
+        }
+
         // owner id match
-        if ($company->owner_id && $user->id === $company->owner_id) return true;
+        if ($company->owner_id && $user->id === $company->owner_id) {
+            return true;
+        }
+
         // pivot membership with owner/manager role
         if (method_exists($user, 'companies')) {
-            $found = $user->companies()->where('company_id', $company->id)->exists();
-            if ($found) return true;
+            $found = $user->companies()
+                ->where('company_id', $company->id)
+                ->exists();
+
+            if ($found) {
+                return true;
+            }
         }
+
         return false;
     }
 }

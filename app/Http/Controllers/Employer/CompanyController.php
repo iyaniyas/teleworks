@@ -13,7 +13,14 @@ class CompanyController extends Controller
     public function edit(Request $request)
     {
         $company = $request->user()->company ?? Company::find($request->user()->company_id);
-        return view('employer.company.edit', compact('company'));
+
+        if (!$company) {
+            return redirect()->route('companies.create')
+                ->with('info', 'Silakan lengkapi profil perusahaan terlebih dahulu.');
+        }
+
+        // gunakan view yang sesuai dengan lokasi file: resources/views/companies/edit.blade.php
+        return view('companies.edit', compact('company'));
     }
 
     public function update(Request $request)
@@ -22,12 +29,12 @@ class CompanyController extends Controller
         $company = $user->company ?? Company::find($user->company_id);
 
         $data = $request->validate([
-            'name' => 'required|string|max:255',
+            'name'        => 'required|string|max:255',
             'description' => 'nullable|string',
-            'website' => 'nullable|url',
-            'phone' => 'nullable|string|max:50',
-            'address' => 'nullable|string|max:500',
-            'logo' => 'nullable|image|max:2048',
+            'website'     => 'nullable|url',
+            'phone'       => 'nullable|string|max:50',
+            'address'     => 'nullable|string|max:500',
+            'logo'        => 'nullable|image|max:2048',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -41,6 +48,7 @@ class CompanyController extends Controller
         if (!$company) {
             $data['slug'] = Str::slug($data['name']) . '-' . Str::random(6);
             $company = Company::create($data);
+
             // set relation to user if schema supports
             $user->company_id = $company->id;
             $user->save();
