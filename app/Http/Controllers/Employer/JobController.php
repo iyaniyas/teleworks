@@ -14,6 +14,7 @@ class JobController extends Controller
 {
     public function __construct()
     {
+        // keep original middleware (auth + role guard)
         $this->middleware(['auth','role:company|admin']);
     }
 
@@ -76,12 +77,16 @@ class JobController extends Controller
 
     /**
      * Store new job (no slug). Note: location is required and used as job_location.
+     *
+     * Added behavior:
+     * - If company has active package => job status will be published (unless explicitly set)
+     * - If company does NOT have active package => job saved as draft and user redirected to purchase.
      */
     public function store(Request $request)
     {
         $user = $request->user();
         $company = $this->resolveCompany($user);
-        if (!$company) return back()->with('error','Perusahaan tidak ditemukan.');
+        if (!$company) return back()->withInput()->with('error','Perusahaan tidak ditemukan.');
 
         if (method_exists($this, 'authorize')) {
             try { $this->authorize('create', Job::class); } catch (\Throwable $e) {}
@@ -118,6 +123,9 @@ class JobController extends Controller
         $jobLocation = $validated['location'];
         $jobLocationType = ((int)$validated['is_remote'] === 1) ? 'Remote' : 'On-site';
 
+        // Determine default status based on company package
+        $defaultStatus = ($company->hasActivePackage() ? ($validated['status'] ?? 'published') : 'draft');
+
         $payload = [
             'company_id' => $company->id,
             'title' => $validated['title'],
@@ -136,14 +144,14 @@ class JobController extends Controller
             'date_posted' => $validated['date_posted'] ? $validated['date_posted'] : now()->toDateString(),
             'valid_through' => $validated['expires_at'],
             'expires_at' => $validated['expires_at'],
-            'status' => $validated['status'] ?? 'published',
+            'status' => $defaultStatus,
             'is_imported' => 0,
             'hiring_organization' => $company->name,
         ];
 
         $job = Job::create($payload);
 
-        // identifier_name/value => job id
+        // identifier_name/value => job id (best-effort)
         try {
             $job->update([
                 'identifier_name' => 'job_id',
@@ -163,8 +171,32 @@ class JobController extends Controller
             $job->direct_apply = 0;
             $job->apply_url = $applyContact ?: null;
         }
+
+        // If company has an active package and it's used to mark job as paid/published, set is_paid & package info
+        if ($company->hasActivePackage()) {
+            $payment = $company->activePackage();
+            if ($payment) {
+                $job->is_paid = 1;
+                // prefer payment->expires_at if present
+                if (isset($payment->expires_at)) {
+                    $job->paid_until = $payment->expires_at;
+                }
+                if (isset($payment->package_id)) {
+                    $job->package_id = $payment->package_id;
+                }
+            }
+        }
+
         $job->save();
 
+        // If company does NOT have an active package, redirect to purchase after saving as draft
+        if (!$company->hasActivePackage()) {
+            return redirect()->route('purchase.create')
+                ->with('error', 'Lowongan tersimpan sebagai draft karena perusahaan belum memiliki paket aktif. Silakan beli paket untuk mem-publish.')
+                ->with('job_id', $job->id);
+        }
+
+        // otherwise success, job published
         return redirect()->route('employer.jobs.index')->with('success', 'Lowongan berhasil dibuat.');
     }
 
@@ -301,6 +333,47 @@ class JobController extends Controller
 
         $job->delete();
         return back()->with('success','Lowongan dihapus.');
+    }
+
+    /**
+     * Publish a draft job (action).
+     *
+     * This action ensures:
+     * - requester belongs to same company as job
+     * - company has active package (otherwise redirect to purchase)
+     * - set job->status = 'published' and optionally mark is_paid/paid_until/package_id
+     */
+    public function publish(Request $request, Job $job)
+    {
+        $user = $request->user();
+        $company = $this->resolveCompany($user);
+
+        if (!$company || $job->company_id !== $company->id) {
+            return back()->with('error', 'Anda tidak berwenang untuk mem-publish lowongan ini.');
+        }
+
+        // Ensure company has active package (if middleware not applied)
+        if (!$company->hasActivePackage()) {
+            return redirect()->route('purchase.create')->with('error', 'Anda perlu paket aktif untuk mem-publish lowongan.');
+        }
+
+        $job->status = 'published';
+
+        // optionally set is_paid/paid_until if you choose to consume package here
+        $payment = $company->activePackage();
+        if ($payment) {
+            $job->is_paid = 1;
+            if (isset($payment->expires_at)) {
+                $job->paid_until = $payment->expires_at;
+            }
+            if (isset($payment->package_id)) {
+                $job->package_id = $payment->package_id;
+            }
+        }
+
+        $job->save();
+
+        return redirect()->route('employer.jobs.index')->with('success', 'Lowongan berhasil dipublikasikan.');
     }
 }
 

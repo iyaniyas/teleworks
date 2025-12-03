@@ -24,7 +24,14 @@ class SearchController extends Controller
         $wfh       = $request->boolean('wfh');
         $perPage   = 21;
 
-        $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        // NEW FEATURE:
+        // If client requests database-only search (query param `db_only=1`), use simplified DB-only search
+        // that prioritizes paid/premium jobs first. Otherwise use the full multi-source performSearch.
+        if ($request->boolean('db_only')) {
+            $jobs = $this->performSearchDbOnly($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        } else {
+            $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        }
 
         $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
         $fallbackHasResults = (method_exists($jobs, 'total')
@@ -123,7 +130,12 @@ class SearchController extends Controller
             return redirect()->to($target)->setStatusCode(302);
         }
 
-        $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        // respect db_only param here as well
+        if ($request && $request->boolean('db_only')) {
+            $jobs = $this->performSearchDbOnly($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        } else {
+            $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        }
 
         $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
         $fallbackHasResults = (method_exists($jobs, 'total')
@@ -216,7 +228,12 @@ class SearchController extends Controller
             return redirect()->to($target)->setStatusCode(302);
         }
 
-        $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        // respect db_only param here too
+        if ($request && $request->boolean('db_only')) {
+            $jobs = $this->performSearchDbOnly($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        } else {
+            $jobs = $this->performSearch($qRaw, $lokasiRaw, $wfh, $perPage, $request);
+        }
 
         $dbTotal = $this->countDbMatches($qRaw, $lokasiRaw);
         $fallbackHasResults = (method_exists($jobs, 'total')
@@ -303,6 +320,8 @@ class SearchController extends Controller
      *
      * Additional behavior: if mapped Careerjet external results (after dedupe) < 10,
      * fetch Jooble and top-up external results up to 10 (or until Jooble exhausted).
+     *
+     * (original complex implementation — unchanged)
      */
     protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 21, Request $request = null)
     {
@@ -533,6 +552,85 @@ class SearchController extends Controller
             'query' => $request->query(),
         ]);
 
+        return $paginator;
+    }
+
+    /**
+     * NEW: performSearchDbOnly
+     *
+     * A simpler DB-only search implementation that:
+     *  - searches published, non-expired jobs,
+     *  - optionally filters by query and lokasi,
+     *  - optionally filters WFH (is_remote),
+     *  - orders by is_paid desc, then date_posted desc, created_at desc,
+     *  - maps items into a lightweight object shape (matching front-end expectations).
+     *
+     * Use by passing ?db_only=1 in the request or by calling directly.
+     *
+     * @return \Illuminate\Pagination\LengthAwarePaginator
+     */
+    protected function performSearchDbOnly($qRaw, $lokasiRaw, $wfh = false, $perPage = 21, Request $request = null)
+    {
+        $request = $request ?: request();
+        $page = max(1, (int)$request->query('page', 1));
+
+        $query = Job::query()
+            ->where('status', 'published')
+            ->where(function ($qb) {
+                $qb->whereNull('expires_at')
+                   ->orWhere('expires_at', '>', now());
+            });
+
+        if (!empty($qRaw)) {
+            $query->where(function ($qq) use ($qRaw) {
+                $qq->where('title', 'like', "%{$qRaw}%")
+                   ->orWhere('company', 'like', "%{$qRaw}%")
+                   ->orWhere('description', 'like', "%{$qRaw}%");
+            });
+        }
+
+        if (!empty($lokasiRaw)) {
+            $query->where(function ($qq) use ($lokasiRaw) {
+                $qq->where('location', 'like', "%{$lokasiRaw}%")
+                   ->orWhere('job_location', 'like', "%{$lokasiRaw}%");
+            });
+        }
+
+        if ($wfh) {
+            $query->where('is_remote', 1);
+        }
+
+        // Prioritize paid/premium jobs first
+        $query->orderByDesc('is_paid')->orderByDesc('date_posted')->orderByDesc('created_at');
+
+        $paginator = $query->paginate($perPage);
+
+        // Map items so views can access raw model as $job->raw (matching previous view expectations)
+        $mapped = collect($paginator->items())->map(function ($job) {
+            $datePosted = $job->date_posted ?? $job->created_at ?? null;
+            try {
+                $dateParsed = $datePosted ? Carbon::parse($datePosted) : null;
+            } catch (\Throwable $e) {
+                $dateParsed = null;
+            }
+
+            return (object)[
+                'id'         => $job->id,
+                'title'      => $job->title,
+                'company'    => $job->company,
+                'location'   => $job->location ?? $job->job_location ?? null,
+                'apply_url'  => url('/loker/' . $job->id),
+                'url'        => url('/loker/' . $job->id),
+                'date_posted'=> $dateParsed,
+                'source'     => 'db',
+                'raw'        => $job,
+                'is_external'=> false,
+                'description'=> null,
+            ];
+        });
+
+        // Set new collection to paginator and return
+        $paginator->setCollection($mapped);
         return $paginator;
     }
 

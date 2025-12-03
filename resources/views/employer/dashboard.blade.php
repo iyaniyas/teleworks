@@ -15,79 +15,64 @@
         </div>
       </div>
 
-      <div class="row g-4">
+      @php
+          $user = auth()->user();
+          $company = null;
+          if ($user) {
+              if (property_exists($user, 'company_id') && $user->company_id) {
+                  $company = \App\Models\Company::find($user->company_id);
+              }
+              if (!$company && method_exists($user, 'company') && $user->company) {
+                  $company = $user->company;
+              }
+              if (!$company && method_exists($user, 'companies')) {
+                  $company = $user->companies()->first();
+              }
+          }
+          $activePkg = $company ? $company->activePackage() : null;
+      @endphp
 
-        {{-- COMPANY PROFILE --}}
-        <div class="col-md-4">
-          <div class="card border-0 shadow-sm h-100" style="background:#1c1f2a; color:#d1d6e3;">
-            <div class="card-body">
-
-              @php
-                $company = $company ?? null;
-              @endphp
-
-              <div class="d-flex align-items-center gap-3 mb-3">
-                <div class="rounded-circle d-flex align-items-center justify-content-center"
-                     style="width:64px;height:64px;background:#2a2f45;
-                            font-weight:700;font-size:1.3rem;color:#cbd1ff;">
-                  @if($company && $company->logo_path)
-                    <img src="{{ asset('storage/'.$company->logo_path) }}" alt="logo" style="width:64px;height:64px;object-fit:cover;border-radius:50%;">
-                  @else
-                    {{ strtoupper(substr(auth()->user()->name,0,1)) }}
-                  @endif
+      <div class="mb-3">
+        @if($activePkg)
+          <div class="card p-3 mb-3" style="background:#0b3d91;color:#fff;">
+            <div class="d-flex justify-content-between">
+              <div>
+                <div style="font-weight:600;">
+                  Paket Aktif:
+                  {{ $activePkg->package_id ? (\App\Models\JobPackage::find($activePkg->package_id)->name ?? 'Paket') : 'Paket' }}
                 </div>
-
-                <div>
-                  <div style="font-weight:600;color:#ffffff;">
-                    {{ $company->name ?? 'Belum ada nama perusahaan' }}
-                  </div>
-                  <div class="small" style="color:#a4aac3;">
-                    {{ $company->domain ?? '-' }}
-                  </div>
-                  <div class="small" style="color:#8b90a8;">
-                    {{ $company->is_verified ? 'Terverifikasi' : 'Belum terverifikasi' }}
-                  </div>
+                <div style="font-size:.9rem;opacity:.95;">
+                  Berlaku sampai: {{ \Carbon\Carbon::parse($activePkg->expires_at)->format('d M Y') }}
+                  (sisa {{ \Carbon\Carbon::now()->diffInDays($activePkg->expires_at) }} hari)
                 </div>
               </div>
-
-              <div class="mb-3">
-                <div class="small mb-1" style="color:#9da3b4;">Deskripsi</div>
-                <div class="rounded p-3" style="background:#181b25; color:#cfd3e7;">
-                  {!! nl2br(e($company->description ?? 'Belum ada deskripsi perusahaan.')) !!}
-                </div>
+              <div class="text-end">
+                <a href="{{ route('company.edit') }}" class="btn btn-outline-light">Edit Profil</a>
+                <a href="{{ route('purchase.create') }}" class="btn btn-outline-light ms-2">Perpanjang</a>
               </div>
-
-              <div class="d-grid gap-2 mt-3">
-                {{-- View public profile --}}
-                <a href="{{ route('companies.show', $company->slug ?? '') }}" class="btn btn-primary" style="font-weight:500;">
-                  Lihat Profil Publik
-                </a>
-
-		<a href="{{ route('companies.edit', $company->id) }}"
-		   class="btn btn-outline-light"
-		   style="border-color:#3a3f58;color:#dce1f1;">
-			  Edit Perusahaan
-		</a>
-
-                <a href="{{ route('employer.jobs.create') }}" class="btn btn-outline-light" style="border-color:#3a3f58;color:#dce1f1;">
-                  Buat Lowongan
-                </a>
-
-                <a href="{{ route('employer.applications') }}" class="btn btn-outline-light" style="border-color:#3a3f58;color:#dce1f1;">
-                  Lihat Pelamar
-                </a>
-              </div>
-
             </div>
           </div>
-        </div>
+        @else
+          <div class="card p-3 mb-3" style="background:#1c1f2a;color:#cbd1e6;">
+            <div class="d-flex justify-content-between">
+              <div>
+                <div style="font-weight:600;">Belum ada paket aktif</div>
+                <div style="font-size:.9rem;opacity:.9;">Beli paket untuk dapat mem-publish lowongan.</div>
+              </div>
+              <div class="text-end">
+                <a href="{{ route('pricing') }}" class="btn btn-primary">Beli Paket</a>
+              </div>
+            </div>
+          </div>
+        @endif
+      </div>
 
-        {{-- JOBS & KPI --}}
+      <div class="row">
         <div class="col-md-8">
           <div class="card border-0 shadow-sm h-100" style="background:#1c1f2a;color:#cbd1e6;">
             <div class="card-body">
 
-              {{-- KPI blok atas --}}
+              {{-- KPI block (sample) --}}
               <div class="row mb-3">
                 <div class="col-6 col-md-3 mb-2">
                   <div class="p-3 rounded" style="background:#151726;color:#e6eef8;">
@@ -115,45 +100,32 @@
                 </div>
               </div>
 
-              {{-- Lowongan terbaru --}}
-              <div class="mb-3">
-                <div style="font-weight:600;color:#ffffff;">Lowongan Terbaru</div>
-                <div class="small" style="color:#9da3b4;">Daftar lowongan yang terakhir dibuat oleh perusahaan ini.</div>
-              </div>
-
-              @if(isset($recentJobs) && $recentJobs->count())
-                <div class="list-group list-group-flush">
-                  @foreach($recentJobs as $job)
-                    <div class="list-group-item" style="background:#181b25;border:1px solid #252943;border-radius:10px;margin-bottom:8px;color:#e4e8ff;">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                          <div style="font-weight:600;">{{ $job->title }}</div>
-                          <div class="small" style="color:#b2b7ce;">{{ $job->company ?? ($company->name ?? 'Perusahaan') }} · {{ $job->location ?? 'Remote / Indonesia' }}</div>
-                          <div class="small mt-1" style="color:#8f95ab;">{{ $job->employment_type ?? '' }}</div>
-                        </div>
-                        <div class="text-end">
-                          <div><span class="badge bg-{{ $job->status === 'published' ? 'success' : 'secondary' }}">{{ $job->status }}</span></div>
-                          <div class="mt-2">
-                            @if($job->is_imported)
-                              <span class="badge bg-warning text-dark">Imported</span>
-                              <a href="{{ route('jobs.show', $job->id) }}" class="btn btn-sm btn-outline-secondary">Lihat</a>
-                            @else
-                              <a href="{{ route('employer.jobs.edit', $job->id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
-                            @endif
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  @endforeach
-                </div>
-              @else
-                <div class="text-center py-4">
-                  <div style="font-weight:500;color:#e2e5f4;">Belum ada lowongan</div>
-                  <div class="small mb-3" style="color:#9da3b4;">Buat lowongan pertama untuk mulai menerima pelamar.</div>
-                  <a href="{{ route('employer.jobs.create') }}" class="btn btn-outline-primary btn-sm">Buat Lowongan</a>
+              {{-- recent jobs --}}
+              @if(isset($recentJobs) && $recentJobs->count() > 0)
+                <div class="mb-3">
+                  <h5 class="mb-2" style="color:#e8eaf1;">Lowongan Terbaru</h5>
+                  <ul class="list-group list-group-flush">
+                    @foreach($recentJobs as $rj)
+                      <li class="list-group-item bg-transparent" style="color:#d1d6e3;">
+                        <a href="{{ route('jobs.show', $rj->id) }}" class="text-decoration-none text-light">{{ $rj->title }}</a>
+                      </li>
+                    @endforeach
+                  </ul>
                 </div>
               @endif
 
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100" style="background:#1c1f2a;color:#cbd1e6;">
+            <div class="card-body">
+              <div class="list-group">
+                <a href="{{ route('employer.jobs.index') }}" class="list-group-item list-group-item-action bg-transparent text-light">Kelola Lowongan</a>
+                <a href="{{ route('employer.applications') }}" class="list-group-item list-group-item-action bg-transparent text-light">Pelamar</a>
+                <a href="{{ route('company.edit') }}" class="list-group-item list-group-item-action bg-transparent text-light">Profil Perusahaan</a>
+              </div>
             </div>
           </div>
         </div>

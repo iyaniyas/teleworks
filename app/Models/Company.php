@@ -14,25 +14,17 @@ class Company extends Model
         'slug',
         'domain',
         'logo_path',
+        'website',
+        'location',
         'description',
-        'is_verified',
-        'is_suspended',
+        'size',
+        'industry',
+        'founded_at'
     ];
 
-    protected $casts = [
-        'is_verified' => 'boolean',
-        'is_suspended' => 'boolean',
-    ];
-
-    /**
-     * Users relation (many-to-many via pivot company_user)
-     * This must match User::companies() which uses belongsToMany(..., 'company_user')
-     */
     public function users()
     {
-        return $this->belongsToMany(\App\Models\User::class, 'company_user', 'company_id', 'user_id')
-                    ->withPivot('role')   // hapus .withPivot jika pivot tidak punya kolom 'role'
-                    ->withTimestamps();   // hapus .withTimestamps jika pivot tidak memiliki created_at/updated_at
+        return $this->belongsToMany(\App\Models\User::class, 'company_user')->withPivot('role')->withTimestamps();
     }
 
     /**
@@ -60,6 +52,31 @@ class Company extends Model
             return asset('storage/'.$this->logo_path);
         }
         return asset('img/company-placeholder.png');
+    }
+
+    /**
+     * Return the latest active JobPayment for this company (status=paid and not expired)
+     */
+    public function activePackage()
+    {
+        return \App\Models\JobPayment::where('company_id', $this->id)
+            ->where('status', 'paid')
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '>', now())
+            ->orderByDesc('expires_at')
+            ->first();
+    }
+
+    public function hasActivePackage(): bool
+    {
+        return (bool) $this->activePackage();
+    }
+
+    public function activePackageDaysLeft(): ?int
+    {
+        $pkg = $this->activePackage();
+        if (!$pkg || !$pkg->expires_at) return null;
+        return now()->diffInDays($pkg->expires_at, false);
     }
 }
 
