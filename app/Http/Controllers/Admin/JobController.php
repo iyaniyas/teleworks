@@ -50,8 +50,11 @@ class JobController extends Controller
         ]);
 
         $job->update($data);
+	
+        \Log::info('Admin job update request', ['request' => $request->all(), 'job_id' => $job->id]);
 
-        return redirect()->route('admin.jobs.index')->with('success', 'Job updated.');
+	return redirect()->route('admin.jobs.index')->with('success', 'Job updated.');
+
     }
 
     public function destroy(Job $job)
@@ -68,5 +71,6 @@ class JobController extends Controller
 
         return redirect()->route('admin.jobs.index')->with('success', 'Job removed.');
     }
+
 }
 

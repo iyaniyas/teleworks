@@ -10,6 +10,16 @@ class ReportController extends Controller
 {
     public function index()
     {
+
+	\Log::info('DEBUG_REPORT', [
+    'class_exists_job' => class_exists(\App\Models\Job::class),
+    'declared_jobs' => array_values(array_filter(
+        get_declared_classes(),
+        fn($c) => stripos($c, 'Job') !== false
+    )),
+    'included_files_tail' => array_slice(get_included_files(), -30),
+]);
+
         $reports = Report::with('reportable','reporter')->orderBy('created_at','desc')->paginate(25);
         return view('admin.reports.index', compact('reports'));
     }

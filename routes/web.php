@@ -28,14 +28,16 @@ use App\Http\Controllers\MidtransController;
 // Public report controller
 use App\Http\Controllers\ReportController;
 
-//finish url midtrans
+//reports
+Route::post('/reports', [App\Http\Controllers\ReportController::class, 'store'])->name('reports.store');
+
 // finish/unfinish/error pages (user redirect)
 Route::get('/purchase/finish', [JobPurchaseController::class, 'finish'])->name('purchase.finish');
 Route::get('/purchase/unfinish', [JobPurchaseController::class, 'unfinish'])->name('purchase.unfinish');
 Route::get('/purchase/error', [JobPurchaseController::class, 'error'])->name('purchase.error');
 
 // webhook (public) — keep in api.php or web.php but ensure CSRF not blocking
-Route::post('/api/midtrans/webhook', [MidtransController::class, 'webhook'])->name('midtrans.webhook');
+//Route::post('/api/midtrans/webhook', [MidtransController::class, 'webhook'])->name('midtrans.webhook');
 
 //billing routes
 Route::get('/pricing', function () { return view('pricing'); })->name('pricing');

@@ -13,5 +13,16 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         //
+        // MIDTRANS WEBHOOK
+        // Webhook Midtrans tidak mengirim CSRF token, jadi kita kecualikan endpoint ini.
+        // Jika Anda sudah memindahkan route webhook ke routes/api.php maka pengecualian ini
+        // tidak wajib — tapi aman untuk ditambahkan (tidak berbahaya).
+        //
+        'api/midtrans/webhook',
+        'midtrans/webhook',
+        // beberapa variasi path (jika ada)
+        'api/*/midtrans/webhook',
+        '*/midtrans/webhook',
     ];
 }
+

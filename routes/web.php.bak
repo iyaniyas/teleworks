@@ -32,7 +32,7 @@ Route::get('/purchase/unfinish', [JobPurchaseController::class, 'unfinish'])->na
 Route::get('/purchase/error', [JobPurchaseController::class, 'error'])->name('purchase.error');
 
 // webhook (public) — keep in api.php or web.php but ensure CSRF not blocking
-Route::post('/api/midtrans/webhook', [MidtransController::class, 'webhook'])->name('midtrans.webhook');
+//Route::post('/api/midtrans/webhook', [MidtransController::class, 'webhook'])->name('midtrans.webhook');
 
 // Public report controller
 use App\Http\Controllers\ReportController;

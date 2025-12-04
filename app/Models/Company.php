@@ -78,5 +78,7 @@ class Company extends Model
         if (!$pkg || !$pkg->expires_at) return null;
         return now()->diffInDays($pkg->expires_at, false);
     }
+
+
 }
 
