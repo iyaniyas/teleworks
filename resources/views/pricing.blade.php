@@ -1,3 +1,4 @@
+{{-- resources/views/pricing.blade.php --}}
 @extends('layouts.app')
 
 @section('title','Pricing — Teleworks')
@@ -9,9 +10,16 @@
   <p class="lead" style="color:rgba(230,238,248,0.85);">
     Tingkatkan visibilitas lowongan Anda dengan paket berbayar kami. Pembayaran diproses melalui <strong>Midtrans</strong>. Pilih paket yang sesuai kebutuhan perusahaan Anda lalu lanjutkan ke pembayaran.
   </p>
-  <div class="d-flex justify-content-center mt-4">
-    <a href="#plans" class="btn btn-outline-light btn-lg me-2">Lihat Paket</a>
-    <a href="#faq" class="btn btn-link btn-lg text-decoration-none" style="color:rgba(230,238,248,0.85);">FAQ</a>
+
+  {{-- GANTI: tombol lama diganti dengan block CTA employer --}}
+  <div class="pricing-page my-4">
+    <h2 class="h4 text-light">Pilih Paket</h2>
+    <p style="color:rgba(230,238,248,0.85);">Pilih paket di bawah untuk mem-publish lowongan Anda.</p>
+
+    {{-- CTA: arahkan employer untuk membuat lowongan terlebih dahulu --}}
+    <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary">
+      Buat Lowongan & Pilih Paket
+    </a>
   </div>
 </div>
 
@@ -45,7 +53,10 @@
             </ul>
 
             <div class="mt-auto">
-              <a href="{{ route('purchase.create', ['package' => 'basic']) }}" class="btn btn-outline-light w-100">Pasang Lowongan</a>
+              {{-- Tombol lama diganti: arahkan ke pembuatan job employer --}}
+              <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
+                Buat Lowongan & Pilih Paket
+              </a>
             </div>
           </div>
         </div>
@@ -77,7 +88,10 @@
             </ul>
 
             <div class="mt-auto">
-              <a href="{{ route('purchase.create', ['package' => 'standard']) }}" class="btn btn-primary w-100">Pasang Lowongan</a>
+              {{-- Tombol lama diganti --}}
+              <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
+                Buat Lowongan & Pilih Paket
+              </a>
             </div>
           </div>
         </div>
@@ -109,7 +123,10 @@
             </ul>
 
             <div class="mt-auto">
-              <a href="{{ route('purchase.create', ['package' => 'premium']) }}" class="btn btn-outline-light w-100">Pasang Lowongan</a>
+              {{-- Tombol lama diganti --}}
+              <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
+                Buat Lowongan & Pilih Paket
+              </a>
             </div>
           </div>
         </div>

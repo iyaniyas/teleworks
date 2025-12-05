@@ -22,40 +22,37 @@ class JobPurchaseController extends Controller
 
     /**
      * User returned after payment flow (Finish URL)
-     * Prefer to read status from DB (webhook should have updated it).
-     * Fallback to Midtrans client only if DB doesn't have definitive state.
+     * We DO NOT trust this 100% — verify via Midtrans status API.
      */
     public function finish(Request $request)
     {
-        $orderId = $request->query('order_id') ?? $request->query('external_id') ?? null;
-        if (! $orderId) {
-            return view('purchase.finish')->with('error', 'Order ID tidak ditemukan.');
+        $orderId = $request->query('order_id') ?? $request->query('orderId') ?? null;
+        if (!$orderId) {
+            // no order id — show generic page
+            return view('purchase.finish')->with(['status' => 'unknown', 'message' => 'Tidak ada order_id di URL.']);
         }
 
-        $payment = \App\Models\JobPayment::where('external_id', $orderId)->first();
-        if (! $payment) {
-            \Log::warning('purchase.finish: payment not found', ['order_id' => $orderId]);
-            return view('purchase.finish')->with('error', 'Kami gagal memeriksa status pembayaran saat ini. Mohon cek kembali nanti.');
-        }
-
-        if ($payment->status === 'paid') {
-            return view('purchase.finish')->with('success', 'Pembayaran berhasil. Order: ' . $orderId);
-        }
-
-        // fallback: coba cek Midtrans (opsional) - tangani error gracefully
         try {
-            $midtrans = app(\App\Services\MidtransClient::class);
-            if (method_exists($midtrans, 'checkStatus')) {
-                $status = $midtrans->checkStatus($orderId); // sesuaikan nama method jika berbeda
-                if (is_array($status) && in_array($status['transaction_status'] ?? '', ['capture','settlement','success'])) {
-                    return view('purchase.finish')->with('info', 'Pembayaran sedang diproses. Mohon tunggu beberapa menit.');
-                }
-            }
-        } catch (\Throwable $e) {
-            \Log::error('Finish check midtrans status error: ' . $e->getMessage(), ['order_id' => $orderId]);
-        }
+            $statusResp = $this->midtrans->getStatus($orderId);
+            // statusResp includes 'transaction_status', 'fraud_status', etc.
+            $txStatus = strtolower($statusResp['transaction_status'] ?? '');
+            $fraud = strtolower($statusResp['fraud_status'] ?? '');
 
-        return view('purchase.finish')->with('error', 'Kami gagal memeriksa status pembayaran saat ini. Mohon cek kembali nanti.');
+            // Map midtrans status to our state
+            $isPaid = in_array($txStatus, ['settlement','capture']) && ($fraud === '' || $fraud === 'accept');
+
+            // optional: fetch local payment row
+            $payment = JobPayment::where('external_id', $orderId)->first();
+
+            return view('purchase.finish', [
+                'status' => $isPaid ? 'paid' : $txStatus,
+                'midtrans' => $statusResp,
+                'payment' => $payment,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Finish check midtrans status error: '.$e->getMessage(), ['order_id'=>$orderId]);
+            return view('purchase.finish')->with(['status' => 'error', 'message' => 'Gagal memeriksa status pembayaran. Silakan cek dashboard atau tunggu notifikasi.']);
+        }
     }
 
     /**
@@ -165,61 +162,17 @@ class JobPurchaseController extends Controller
             'started_at' => now(),
         ]);
 
-        // --------------- BEGIN REPLACE BLOCK ---------------
-        // after $payment was created and $package + $job are available
-
-        // Build Midtrans payload array (order_id must match payment->external_id)
-        $externalId = $payment->external_id;
-        $amount = (int) ($payment->amount ?? 0);
-        $packageName = $package->name ?? ('Paket ' . ($package->id ?? 'Unknown'));
-
-        // Minimal payload expected by Midtrans/Snap
-        $midtransPayload = [
-            'transaction_details' => [
-                'order_id' => $externalId,
-                'gross_amount' => $amount,
-            ],
-            'item_details' => [
-                [
-                    'id' => $package->id,
-                    'price' => $amount,
-                    'quantity' => 1,
-                    'name' => $packageName,
-                ],
-            ],
-            'customer_details' => [
-                'first_name' => auth()->user()->name ?? null,
-                'email' => auth()->user()->email ?? null,
-            ],
-            // optional: you can add 'callbacks' or 'callback' keys if your MidtransClient expects them
-        ];
-
-        // Log the payload for debugging (optional)
-        \Log::info('Midtrans payload prepared', ['order_id' => $externalId, 'payload' => $midtransPayload, 'payment_id' => $payment->id]);
-
-        // Call the service with array payload (the service signature expects array)
-        $txn = $this->midtrans->createTransaction($midtransPayload);
-
-        // Persist response/meta to payment for auditing
-        $payment->meta = is_array($txn) ? $txn : ['raw' => (string) $txn];
-        $payment->save();
-
-        // Handle response: MidtransClient::createTransaction should return an array that may include redirect_url or token
-        if (is_array($txn) && isset($txn['redirect_url'])) {
-            // Redirect gateway (server-side redirect)
-            return redirect()->away($txn['redirect_url']);
-        } elseif (is_array($txn) && isset($txn['token'])) {
-            // Snap token flow: return view with snap token (your app might render JS to open Snap)
-            return view('purchase.pay', ['snapToken' => $txn['token'], 'payment' => $payment]);
-        } elseif (is_array($txn) && isset($txn['payment_url'])) {
-            // Some wrappers use payment_url
-            return redirect()->away($txn['payment_url']);
-        } else {
-            // Fallback: if service returned something else, log and show error
-            \Log::error('Midtrans createTransaction unexpected response', ['resp' => $txn, 'payment_id' => $payment->id]);
-            return back()->withErrors('Gagal membuat transaksi: respons gateway tidak terduga. Silakan coba lagi atau hubungi admin.');
+        // call your Midtrans service to create transaction (ensure it uses order_id = external_id)
+        $midtrans = app(\App\Services\MidtransClient::class);
+        try {
+            $txn = $midtrans->createTransaction($payment, $package);
+            // redirect/show page to let user complete payment (your implementation may differ)
+            return redirect()->route('purchase.show', ['payment' => $payment->id]);
+        } catch (\Throwable $e) {
+            $payment->status = 'failed';
+            $payment->save();
+            return back()->withErrors('Gagal membuat transaksi: '.$e->getMessage());
         }
-        // --------------- END REPLACE BLOCK ---------------
     }
 }
 

@@ -26,9 +26,14 @@
     <form id="purchaseForm" action="{{ route('purchase.store') }}" method="post" novalidate>
       @csrf
 
+      {{-- penting: sertakan job_id jika datang dari job --}}
+      @if(isset($job) && $job && isset($job->id))
+        <input type="hidden" name="job_id" value="{{ $job->id }}">
+      @endif
+
       <div class="row">
         <!-- LEFT -->
-        <div class="col-md-8">
+        <div class="col-md-12">
           <label class="form-label text-light">Pilih Paket</label>
 
           <div class="row g-3">
@@ -42,17 +47,16 @@
                     || ($prePackageSlug && $prePackageSlug === $p->slug);
               @endphp
 
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-md-6 col-lg-4">
                 <label class="card h-100 p-3 package-card"
-                       style="cursor:pointer; 
-                       background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); 
-                       border:1px solid rgba(255,255,255,0.05);">
+                  style="cursor:pointer;
+                  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+                  border:1px solid rgba(255,255,255,0.05);">
 
                   <!-- HEADER -->
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
                       <div class="fw-bold text-light">{{ $p->name }}</div>
-                      <!-- FIXED COLOR -->
                       <small style="color:rgba(255,255,255,0.88);">
                         {{ $p->duration_days }} hari
                       </small>
@@ -64,7 +68,7 @@
                     </div>
                   </div>
 
-                  <!-- FEATURES (FIXED COLOR) -->
+                  <!-- FEATURES -->
                   <div class="mt-2" style="color:rgba(255,255,255,0.88);">
                     @if(is_array($p->features))
                       <ul class="mb-0">
@@ -85,8 +89,8 @@
                   <!-- RADIO -->
                   <div class="form-check mt-3">
                     <input class="form-check-input package-radio" type="radio"
-                           name="package_id" id="pkg_{{ $p->id }}" value="{{ $p->id }}"
-                           {{ $isSelected ? 'checked' : '' }}>
+                      name="package_id" id="pkg_{{ $p->id }}" value="{{ $p->id }}"
+                      {{ $isSelected ? 'checked' : '' }}>
                     <label class="form-check-label text-light" for="pkg_{{ $p->id }}">
                       Pilih {{ $p->name }}
                     </label>
@@ -98,31 +102,24 @@
             @endforeach
 
           </div>
-        </div>
-
-        <!-- RIGHT -->
-        <div class="col-md-4">
-          <label class="form-label text-light">Job (opsional)</label>
-          <input type="text" name="job_id" class="form-control"
-                 placeholder="Masukkan job id (opsional)" value="{{ old('job_id') }}">
 
           <div class="mt-4">
             <button id="purchaseBtn" type="submit" class="btn btn-primary w-100">
               <span id="purchaseBtnText">Lanjut ke Pembayaran (Midtrans)</span>
               <span id="purchaseSpinner"
-                    class="spinner-border spinner-border-sm ms-2 d-none"
-                    role="status" aria-hidden="true"></span>
+                class="spinner-border spinner-border-sm ms-2 d-none"
+                role="status" aria-hidden="true"></span>
             </button>
           </div>
 
           <div class="mt-3"
-               style="color:rgba(255,255,255,0.75); font-size:.9rem;">
+            style="color:rgba(255,255,255,0.75); font-size:.9rem;">
             Pembayaran diproses melalui Midtrans. Setelah klik, Anda akan diarahkan
             ke halaman pembayaran Midtrans. Midtrans akan mengirim notifikasi
             ke server kami setelah transaksi selesai.
           </div>
-        </div>
 
+        </div>
       </div>
     </form>
   </div>
@@ -150,15 +147,16 @@ document.addEventListener('DOMContentLoaded', function () {
       e.preventDefault();
       return;
     }
+
     btn.dataset.submitted = '1';
     btn.classList.add('disabled');
     spinner.classList.remove('d-none');
     btnText.textContent = 'Menghubungkan ke Midtrans...';
   });
 
-  // Make whole card clickable
-  document.querySelectorAll('.package-card').forEach(function(card){
-    card.addEventListener('click', function(){
+  // Make entire card clickable
+  document.querySelectorAll('.package-card').forEach(function(card) {
+    card.addEventListener('click', function() {
       const radio = card.querySelector('input.package-radio');
       if (radio) radio.checked = true;
     });

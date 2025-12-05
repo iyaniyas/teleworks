@@ -13,50 +13,21 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user = auth()->user();
+        $companyId = $user->company_id ?? null;
+        $hasActivePackage = false;
 
-        $company = $this->resolveCompany($user);
-
-        $jobIds = $company ? $company->jobs()->pluck('id') : collect();
-
-        $totalJobs = $company ? $company->jobs()->count() : 0;
-        $publishedJobs = $company ? $company->jobs()->where('status', 'published')->count() : 0;
-
-        // Count applications using JobApplication or JobApplication model in your app
-        $totalApplications = 0;
-        try {
-            // Try common names: JobApplication, Application, JobApplicationModel
-            if (class_exists(\App\Models\JobApplication::class)) {
-                $totalApplications = \App\Models\JobApplication::whereIn('job_id', $jobIds)->count();
-            } elseif (class_exists(\App\Models\Application::class)) {
-                $totalApplications = \App\Models\Application::whereIn('job_id', $jobIds)->count();
-            } elseif (class_exists(\App\Models\Job::class)) {
-                // fallback: count 0
-                $totalApplications = 0;
-            }
-        } catch (\Throwable $e) {
-            $totalApplications = 0;
+        if ($companyId) {
+            $now = Carbon::now();
+            $hasActivePackage = Job::where('company_id', $companyId)
+                ->where('is_paid', 1)
+                ->where(function($q) use ($now) {
+                    $q->whereNotNull('paid_until')->where('paid_until', '>', $now)
+                      ->orWhereNotNull('expires_at')->where('expires_at', '>', $now);
+                })->exists();
         }
 
-        $newApplicants = 0;
-        try {
-            $yesterday = Carbon::now()->subDay();
-            if (class_exists(\App\Models\JobApplication::class)) {
-                $newApplicants = \App\Models\JobApplication::whereIn('job_id', $jobIds)
-                    ->where('created_at', '>=', $yesterday)->count();
-            } elseif (class_exists(\App\Models\Application::class)) {
-                $newApplicants = \App\Models\Application::whereIn('job_id', $jobIds)
-                    ->where('created_at', '>=', $yesterday)->count();
-            }
-        } catch (\Throwable $e) {
-            $newApplicants = 0;
-        }
-
-        $recentJobs = $company ? $company->jobs()->latest()->limit(6)->get() : collect();
-
-        return view('employer.dashboard', compact(
-            'company','totalJobs','publishedJobs','totalApplications','newApplicants','recentJobs'
-        ));
+        return view('employer.dashboard', compact('hasActivePackage'));
     }
 
     protected function resolveCompany($user)

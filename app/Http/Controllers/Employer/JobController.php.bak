@@ -76,23 +76,6 @@ class JobController extends Controller
     }
 
     /**
-     * Show single job in employer area
-     */
-    public function show(Job $job)
-    {
-        $user = auth()->user();
-
-        // Employer can only see jobs under their own company
-        if (!$user->hasRole('admin')) {
-            if (($user->company_id ?? null) !== $job->company_id) {
-                abort(404);
-            }
-        }
-
-        return view('employer.jobs.show', compact('job'));
-    }
-
-    /**
      * Store new job (no slug). Note: location is required and used as job_location.
      *
      * Added behavior:

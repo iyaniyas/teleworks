@@ -4,19 +4,36 @@
 <div class="container py-5 text-center text-light">
   <h2>Hasil Pembayaran</h2>
 
-  @if(isset($status) && $status === 'paid')
-    <div class="alert alert-success">Pembayaran terkonfirmasi. Lowongan akan segera aktif.</div>
-  @elseif(isset($status) && $status === 'error')
-    <div class="alert alert-warning">Kami gagal memeriksa status pembayaran saat ini. Mohon cek kembali nanti.</div>
+  @if(isset($success))
+    <div class="alert alert-success">
+      {{ $success }}
+    </div>
+
+  @elseif(isset($error))
+    <div class="alert alert-warning">
+      {{ $error }}
+    </div>
+
+  @elseif(isset($info))
+    <div class="alert alert-info">
+      {{ $info }}
+      <p class="mt-3">
+        Jika Anda yakin sudah membayar, tunggu beberapa menit. Sistem akan memperbarui status secara otomatis.
+      </p>
+    </div>
+
   @else
-    <div class="alert alert-info">Status transaksi: <strong>{{ $status ?? 'unknown' }}</strong></div>
-    <p>Jika Anda yakin sudah membayar, tunggu notifikasi. Webhook Midtrans akan memperbarui status di sistem kami.</p>
+    <div class="alert alert-info">
+      Status pembayaran belum dapat dipastikan saat ini.
+    </div>
+    <p class="mt-3">
+      Jika Anda yakin sudah membayar, cek kembali di dashboard atau tunggu notifikasi berikutnya.
+    </p>
   @endif
 
   <a href="{{ url('employer/dashboard') }}" class="btn btn-primary mt-3">
     Kembali ke Dashboard
-</a>
-
+  </a>
 </div>
 @endsection
 
