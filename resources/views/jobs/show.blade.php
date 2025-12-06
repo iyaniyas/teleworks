@@ -9,6 +9,15 @@
 
 @section('meta_description', $metaDescriptionText)
 
+{{-- Inject JSON-LD into <head> via stack (layouts.app sudah punya @stack('head')) --}}
+@push('head')
+  @if(!empty($jobPostingJsonLd))
+    <script type="application/ld+json">
+{!! $jobPostingJsonLd !!}
+    </script>
+  @endif
+@endpush
+
 @section('content')
 <div class="container my-4">
   {{-- CARD UTAMA (perubahan #3: border diperjelas) --}}
