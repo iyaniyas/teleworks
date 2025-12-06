@@ -14,14 +14,36 @@
     @if(!empty($response['redirect_url']))
       <a href="{{ $response['redirect_url'] }}" class="btn btn-primary">Lanjut ke Pembayaran</a>
     @elseif(!empty($snapToken))
+      @php
+          $isProduction = config('midtrans.environment') === 'production';
+
+          $baseUrl = $isProduction
+              ? config('midtrans.production_base_url', 'https://app.midtrans.com')
+              : config('midtrans.sandbox_base_url', 'https://app.sandbox.midtrans.com');
+
+          $snapJsUrl = rtrim($baseUrl, '/') . '/snap/snap.js';
+      @endphp
+
       <button id="paySnap" class="btn btn-primary">Bayar (Snap Popup)</button>
-      <script src="https://app.sandbox.midtrans.com/snap/snap.js" data-client-key="{{ config('midtrans.client_key') }}"></script>
+
+      <script src="{{ $snapJsUrl }}"
+              data-client-key="{{ config('midtrans.client_key') }}"></script>
+
       <script>
-        document.getElementById('paySnap').addEventListener('click', function(){
+        document.getElementById('paySnap').addEventListener('click', function () {
           snap.pay('{{ $snapToken }}', {
-            onSuccess: function(result){ console.log(result); location.href = "{{ route('pricing') }}"; },
-            onPending: function(result){ console.log(result); alert('Pembayaran menunggu konfirmasi'); },
-            onError: function(result){ console.log(result); alert('Terjadi kesalahan pembayaran'); }
+            onSuccess: function (result) {
+              console.log(result);
+              location.href = "{{ route('pricing') }}";
+            },
+            onPending: function (result) {
+              console.log(result);
+              alert('Pembayaran menunggu konfirmasi');
+            },
+            onError: function (result) {
+              console.log(result);
+              alert('Terjadi kesalahan pembayaran');
+            }
           });
         });
       </script>
