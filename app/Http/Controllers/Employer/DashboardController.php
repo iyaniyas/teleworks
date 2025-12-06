@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Company;
 use App\Models\Job;
-use App\Models\JobApplication; // if your application model differs, adapt
+// Jika model aplikasi berbeda, nanti kita handle dinamis di bawah
 use Carbon\Carbon;
 
 class DashboardController extends Controller
@@ -15,9 +15,47 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $company = $this->resolveCompany($user);
+        // Kumpulkan semua company yang terkait user:
+        // - pivot company_user
+        // - owner_id
+        // - user->company_id
+        $companies = collect();
 
-        // default values
+        if ($user) {
+            // 1) pivot company_user (jika relasi ada)
+            if (method_exists($user, 'companies')) {
+                $pivotCompanies = $user->companies()->get();
+                if ($pivotCompanies && $pivotCompanies->count() > 0) {
+                    $companies = $companies->merge($pivotCompanies);
+                }
+            }
+
+            // 2) owner_id
+            $ownerCompany = Company::where('owner_id', $user->id)->first();
+            if ($ownerCompany && ! $companies->contains('id', $ownerCompany->id)) {
+                $companies->push($ownerCompany);
+            }
+
+            // 3) company_id langsung di user (legacy)
+            if (!empty($user->company_id)) {
+                $directCompany = Company::find($user->company_id);
+                if ($directCompany && ! $companies->contains('id', $directCompany->id)) {
+                    $companies->push($directCompany);
+                }
+            }
+        }
+
+        $companies = $companies->unique('id')->values();
+
+        // Company utama yang dipakai untuk statistik
+        $company = $companies->first();
+
+        // Hitung apakah ada paket aktif (dari salah satu company)
+        $hasActivePackage = $companies->contains(function ($c) {
+            return method_exists($c, 'hasActivePackage') && $c->hasActivePackage();
+        });
+
+        // Siapkan statistik default
         $totalJobs = 0;
         $publishedJobs = 0;
         $totalApplications = 0;
@@ -25,90 +63,53 @@ class DashboardController extends Controller
         $recentJobs = collect();
 
         if ($company) {
-            // Base query untuk semua job perusahaan ini
-            $baseJobsQuery = Job::where('company_id', $company->id);
+            $jobsQuery = Job::where('company_id', $company->id);
 
-            // Hitung total job
-            $totalJobs = (clone $baseJobsQuery)->count();
+            $totalJobs = $jobsQuery->count();
+            $publishedJobs = (clone $jobsQuery)->where('status', 'published')->count();
 
-            // Hitung published job (boleh tambahkan filter expires_at kalau mau cuma yang aktif)
-            $publishedJobs = (clone $baseJobsQuery)
-                ->where('status', 'published')
-                ->count();
+            $jobIds = (clone $jobsQuery)->pluck('id');
+            if ($jobIds->count() > 0) {
 
-            // Hitung aplikasi kalau model JobApplication ada
-            if (class_exists(JobApplication::class)) {
-                $jobIds = (clone $baseJobsQuery)->pluck('id');
+                // Gunakan model aplikasi yang tersedia
+                if (class_exists(\App\Models\JobApplication::class)) {
+                    $appModel = \App\Models\JobApplication::class;
+                } elseif (class_exists(\App\Models\Application::class)) {
+                    $appModel = \App\Models\Application::class;
+                } else {
+                    $appModel = null;
+                }
 
-                if ($jobIds->isNotEmpty()) {
-                    $totalApplications = JobApplication::whereIn('job_id', $jobIds)->count();
-
-                    $newApplicants = JobApplication::whereIn('job_id', $jobIds)
-                        ->where('created_at', '>=', Carbon::now()->subDay())
+                if ($appModel) {
+                    $totalApplications = $appModel::whereIn('job_id', $jobIds)->count();
+                    $newApplicants = $appModel::whereIn('job_id', $jobIds)
+                        ->where('created_at', '>=', now()->subDay())
                         ->count();
                 }
             }
 
-            // Lowongan terbaru untuk panel "Lowongan Terbaru"
-            $recentJobs = (clone $baseJobsQuery)
+            $recentJobs = (clone $jobsQuery)
                 ->orderByDesc('created_at')
                 ->limit(5)
                 ->get();
         }
 
-        // hasActivePackage masih boleh dipakai kalau suatu saat mau,
-        // tapi view sekarang fokus ke KPI & recentJobs.
-        $hasActivePackage = false;
-        if ($company) {
-            $now = Carbon::now();
-            $hasActivePackage = Job::where('company_id', $company->id)
-                ->where('is_paid', 1)
-                ->where(function ($q) use ($now) {
-                    $q->whereNotNull('paid_until')->where('paid_until', '>', $now)
-                      ->orWhereNotNull('expires_at')->where('expires_at', '>', $now);
-                })->exists();
-        }
+        // Paket aktif untuk company utama (jika ada)
+        $activePkg = $company && method_exists($company, 'activePackage')
+            ? $company->activePackage()
+            : null;
 
-        return view('employer.dashboard', compact(
-            'company',
-            'hasActivePackage',
-            'totalJobs',
-            'publishedJobs',
-            'totalApplications',
-            'newApplicants',
-            'recentJobs'
-        ));
-    }
-
-    /**
-     * Resolve company yang berkaitan dengan user (pivot / owner / legacy)
-     */
-    protected function resolveCompany($user)
-    {
-        if (!$user) {
-            return null;
-        }
-
-        // 1) pivot company_user
-        if (method_exists($user, 'companies') && $user->companies()->exists()) {
-            $company = $user->companies()->first();
-            if ($company) {
-                return $company;
-            }
-        }
-
-        // 2) owner_id on companies
-        $company = Company::where('owner_id', $user->id)->first();
-        if ($company) {
-            return $company;
-        }
-
-        // 3) company_id on user (if exists)
-        if (!empty($user->company_id)) {
-            return Company::find($user->company_id);
-        }
-
-        return null;
+        return view('employer.dashboard', [
+            'companies'          => $companies,
+            'company'            => $company,
+            'activePkg'          => $activePkg,
+            'hasActivePackage'   => $hasActivePackage,
+            'totalJobs'          => $totalJobs,
+            'publishedJobs'      => $publishedJobs,
+            'totalApplications'  => $totalApplications,
+            'newApplicants'      => $newApplicants,
+            'recentJobs'         => $recentJobs,
+        ]);
     }
 }
 

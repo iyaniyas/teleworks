@@ -20,7 +20,7 @@
 
 @section('content')
 <div class="container my-4">
-  {{-- CARD UTAMA (perubahan #3: border diperjelas) --}}
+  {{-- CARD UTAMA --}}
   <div class="card mb-4" style="background:#0b1722;color:#e6eef8;border:1px solid #1f3347;">
     <div class="card-body">
 
@@ -49,8 +49,19 @@
             <li><strong style="color:#ffffff;">Berlaku Hingga:</strong> {{ \Carbon\Carbon::parse($job->valid_through)->translatedFormat('d M Y') }}</li>
           @endif
 
-          @if($job->hiring_organization)
-            <li><strong style="color:#ffffff;">Perusahaan:</strong> {{ $job->hiring_organization }}</li>
+          @php
+            try {
+                $companyModel = $job->company()->first();
+            } catch (\Throwable $e) {
+                $companyModel = null;
+            }
+            $companyName = $companyModel && !empty($companyModel->name)
+                ? $companyModel->name
+                : ($job->hiring_organization ?? null);
+          @endphp
+
+          @if($companyName)
+            <li><strong style="color:#ffffff;">Perusahaan:</strong> {{ $companyName }}</li>
           @endif
 
           @if($job->job_location)
@@ -119,7 +130,7 @@
         </div>
       </section>
 
-      {{-- Laporkan (perubahan #1 & #2: outline → solid danger) --}}
+      {{-- Laporkan --}}
       <div class="mb-3">
         @auth
           <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#reportJobModal">Laporkan Lowongan</button>
@@ -216,7 +227,7 @@
       : null;
 @endphp
 
-{{-- FIXED CTA (tidak diubah, tetap sesuai logic lama) --}}
+{{-- FIXED CTA --}}
 @if($directApply || $externalApplyUrl)
   <div class="position-fixed bottom-0 start-0 end-0" style="z-index:1500;">
     <div class="container py-3 d-flex justify-content-center">

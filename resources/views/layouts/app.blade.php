@@ -8,11 +8,45 @@
     $providedTimestamp = $timestamp ?? null;
     $baseTitle = trim($__env->yieldContent('title')) ?: 'Teleworks';
     $metaDesc = trim($__env->yieldContent('meta_description')) ?: 'Mencari kerja dari jarak jauh, langsung dari rumah.';
+
+    $currentUrl = url()->current();
+    $siteName = 'Teleworks';
+    $ogImage = asset('og-image.jpg');
   @endphp
 
   <title>{{ $baseTitle }}@if($providedTimestamp) {{ $providedTimestamp }}@endif</title>
   <meta name="description" content="{{ e($metaDesc) }}@if($providedTimestamp) (Diperbarui {{ $providedTimestamp }})@endif" />
   <meta name="robots" content="index, follow" />
+
+  {{-- FAVICON --}}
+  <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+  <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+
+  {{-- OPEN GRAPH --}}
+  <meta property="og:site_name" content="{{ $siteName }}" />
+  <meta property="og:title" content="{{ $baseTitle }}@if($providedTimestamp) {{ $providedTimestamp }}@endif" />
+  <meta property="og:description" content="{{ $metaDesc }}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ $currentUrl }}" />
+  <meta property="og:image" content="{{ $ogImage }}" />
+  <meta property="og:locale" content="id_ID" />
+
+  {{-- TWITTER CARD --}}
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ $baseTitle }}@if($providedTimestamp) {{ $providedTimestamp }}@endif" />
+  <meta name="twitter:description" content="{{ $metaDesc }}" />
+  <meta name="twitter:image" content="{{ $ogImage }}" />
+
+  {{-- STRUCTURED DATA: WEBSITE NAME --}}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Teleworks",
+    "alternateName": "Teleworks Indonesia",
+    "url": "{{ url('/') }}"
+  }
+  </script>
 
   {{-- Vite --}}
   @vite('resources/js/app.js')
@@ -20,11 +54,13 @@
   @stack('head')
 </head>
 <body class="site-shell d-flex flex-column" style="background:#081425;color:#e6eef8;min-height:100vh;">
-  {{-- NAVBAR (responsive) --}}
+  {{-- NAVBAR --}}
   <nav class="navbar navbar-expand-lg navbar-dark" style="background:#061122;border-bottom:1px solid rgba(255,255,255,0.04);">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="{{ route('home') }}">
-        <span class="tw-gradient-logo fs-4 fw-bold" style="letter-spacing:1px;background:linear-gradient(90deg,#fff,#c9c9c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">TELE WORKS</span>
+        <span class="tw-gradient-logo fs-4 fw-bold" style="letter-spacing:1px;background:linear-gradient(90deg,#fff,#c9c9c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+          TELE WORKS
+        </span>
       </a>
 
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
@@ -33,6 +69,7 @@
       </button>
 
       <div class="collapse navbar-collapse" id="mainNav">
+        {{-- MENU KIRI --}}
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
             <a class="nav-link py-2" href="{{ route('search.index') }}">Semua Lowongan</a>
@@ -40,14 +77,19 @@
           <li class="nav-item">
             <a class="nav-link py-2" href="{{ route('public.searchlogs') }}">Pencarian Terbaru</a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link py-2 fw-semibold text-warning" href="{{ route('pricing') }}">
+              Pasang Loker
+            </a>
+          </li>
           <li class="nav-item d-lg-none">
             <a class="nav-link py-2" href="{{ route('about') }}">Tentang</a>
           </li>
         </ul>
 
+        {{-- MENU KANAN --}}
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
           @auth
-            {{-- Dashboard link based on role --}}
             @php
               $user = auth()->user();
               $dashUrl = '/dashboard';
@@ -105,28 +147,29 @@
     <div class="container py-4">
       <div class="row">
         <div class="col-md-6 mb-3">
-          <a href="/" class="text-decoration-none" aria-label="Beranda Teleworks">
-            <span class="tw-gradient-logo fs-5 fw-bold" style="background:linear-gradient(90deg,#fff,#c9c9c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">TELE WORKS</span>
+          <a href="/" class="text-decoration-none">
+            <span class="tw-gradient-logo fs-5 fw-bold" style="background:linear-gradient(90deg,#fff,#c9c9c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+              TELE WORKS
+            </span>
           </a>
-          <p class="mb-0 small" style="color:#9fb0c8;">Cari kerja jarak jauh, langsung dari rumah. © {{ date('Y') }}</p>
+          <p class="mb-0 small" style="color:#9fb0c8;">
+            Cari kerja jarak jauh, langsung dari rumah. © {{ date('Y') }}
+          </p>
         </div>
 
         <div class="col-md-6">
           <div class="row">
             <div class="col-6">
-              {{-- gunakan heading semantik tapi tampilkan seperti h6 --}}
               <h2 class="h6 text-light">Menu</h2>
-
-              {{-- gunakan utilitas Bootstrap untuk area sentuh --}}
-              <a href="{{ route('search.index') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;" aria-label="Semua Lowongan">Semua Lowongan</a>
-              <a href="{{ route('public.searchlogs') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;" aria-label="Pencarian Terbaru">Pencarian Terbaru</a>
+              <a href="{{ route('search.index') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Semua Lowongan</a>
+              <a href="{{ route('public.searchlogs') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Pencarian Terbaru</a>
+              <a href="{{ route('pricing') }}" class="d-block py-2 small fw-semibold" style="color:#facc15 !important;">Pasang Loker</a>
             </div>
 
             <div class="col-6">
               <h2 class="h6 text-light">Tentang</h2>
-
-              <a href="{{ route('about') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;" aria-label="Tentang Teleworks">Tentang Teleworks</a>
-              <a href="{{ route('privacy') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;" aria-label="Kebijakan Privasi">Kebijakan Privasi</a>
+              <a href="{{ route('about') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Tentang Teleworks</a>
+              <a href="{{ route('privacy') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Kebijakan Privasi</a>
             </div>
           </div>
         </div>

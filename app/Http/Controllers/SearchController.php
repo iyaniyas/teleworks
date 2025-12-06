@@ -329,6 +329,7 @@ class SearchController extends Controller
         $page = max(1, (int)$request->query('page', 1));
 
         $query = Job::query()
+            ->with('company')
             ->where('status', 'published')
             ->where(function ($qb) {
                 $qb->whereNull('expires_at')
@@ -369,10 +370,24 @@ class SearchController extends Controller
                 $dateParsed = null;
             }
 
+            // sinkronisasi nama perusahaan: pakai tabel companies kalau ada
+            $companyName = null;
+            try {
+                $companyModel = $job->company()->first();
+                if ($companyModel && !empty($companyModel->name)) {
+                    $companyName = $companyModel->name;
+                }
+            } catch (\Throwable $e) {
+                $companyModel = null;
+            }
+            if (!$companyName && !empty($job->company)) {
+                $companyName = $job->company;
+            }
+
             return (object)[
                 'id'         => $job->id,
                 'title'      => $job->title,
-                'company'    => $job->company,
+                'company'    => $companyName,
                 'location'   => $job->location ?? $job->job_location ?? null,
                 'apply_url'  => url('/loker/' . $job->id),
                 'url'        => url('/loker/' . $job->id),
@@ -575,6 +590,7 @@ class SearchController extends Controller
         $page = max(1, (int)$request->query('page', 1));
 
         $query = Job::query()
+            ->with('company')
             ->where('status', 'published')
             ->where(function ($qb) {
                 $qb->whereNull('expires_at')
@@ -614,10 +630,24 @@ class SearchController extends Controller
                 $dateParsed = null;
             }
 
+            // sinkronisasi nama perusahaan: pakai tabel companies kalau ada
+            $companyName = null;
+            try {
+                $companyModel = $job->company()->first();
+                if ($companyModel && !empty($companyModel->name)) {
+                    $companyName = $companyModel->name;
+                }
+            } catch (\Throwable $e) {
+                $companyModel = null;
+            }
+            if (!$companyName && !empty($job->company)) {
+                $companyName = $job->company;
+            }
+
             return (object)[
                 'id'         => $job->id,
                 'title'      => $job->title,
-                'company'    => $job->company,
+                'company'    => $companyName,
                 'location'   => $job->location ?? $job->job_location ?? null,
                 'apply_url'  => url('/loker/' . $job->id),
                 'url'        => url('/loker/' . $job->id),

@@ -115,15 +115,16 @@
         @endphp
 
         <div class="col-12 col-md-6 col-lg-4">
-          <article class="card h-100 shadow-sm hover-card p-3 border-0 text-light {{ $isPremium ? 'premium-card' : 'bg-dark' }}">
+          <article class="card h-100 shadow-sm hover-card p-3 border-0 bg-dark text-light {{ $isPremium ? 'border-start border-3 border-warning' : '' }}">
             <div class="d-flex flex-column h-100">
 
               <div class="mb-2 d-flex justify-content-between">
-                <a href="{{ $href }}" class="h6 result-title text-decoration-none text-light"
+                <a href="{{ $href }}"
+                   class="h6 result-title text-decoration-none {{ $isPremium ? 'text-warning fw-semibold' : 'text-light' }}"
                    @if($isExternal) target="_blank" rel="nofollow noopener" @endif>
                   {{ $job->title }}
                   @if($isPremium)
-                    <span class="premium-badge ms-2">Premium</span>
+                    <span class="badge bg-warning text-dark ms-2">Premium</span>
                   @endif
                 </a>
 
@@ -194,20 +195,6 @@
   .small-muted { color:#bbb !important; font-size:0.875rem; }
   .muted { color:#ccc; }
   .result-title:hover { color:#fff; }
-
-  /* PREMIUM CARD BARU */
-  .premium-card{
-    background:linear-gradient(90deg, rgba(255,250,230,0.03), rgba(255,235,59,0.03));
-    border-left:4px solid #ffd54f;
-  }
-  .premium-badge{
-    background:#ffd54f;
-    color:#2b2b2b;
-    padding:4px 8px;
-    border-radius:4px;
-    font-weight:600;
-    font-size:0.75rem;
-  }
 </style>
 @endpush
 

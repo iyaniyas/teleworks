@@ -44,29 +44,55 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    /**
+     * Relasi ke profil job seeker (jika ada).
+     */
     public function profile()
-{
-    return $this->hasOne(\App\Models\Profile::class);
+    {
+        return $this->hasOne(\App\Models\Profile::class);
+    }
+
+    /**
+     * Relasi ke resume yang di-upload user.
+     */
+    public function resumes()
+    {
+        return $this->hasMany(\App\Models\Resume::class);
+    }
+
+    /**
+     * Relasi ke bookmark lowongan.
+     */
+    public function bookmarks()
+    {
+        return $this->hasMany(\App\Models\Bookmark::class);
+    }
+
+    /**
+     * Relasi ke aplikasi lamaran (job applications).
+     */
+    public function applications()
+    {
+        return $this->hasMany(\App\Models\JobApplication::class);
+    }
+
+    /**
+     * Relasi many-to-many ke perusahaan melalui tabel pivot company_user.
+     */
+    public function companies()
+    {
+        return $this->belongsToMany(\App\Models\Company::class, 'company_user')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    /**
+     * Relasi single company utama via kolom users.company_id.
+     * Dipakai di Employer\CompanyController, dll.
+     */
+    public function company()
+    {
+        return $this->belongsTo(\App\Models\Company::class, 'company_id');
+    }
 }
 
-public function resumes()
-{
-    return $this->hasMany(\App\Models\Resume::class);
-}
-
-public function bookmarks()
-{
-    return $this->hasMany(\App\Models\Bookmark::class);
-}
-
-public function applications()
-{
-    return $this->hasMany(\App\Models\JobApplication::class);
-}
-
-public function companies()
-{
-    return $this->belongsToMany(\App\Models\Company::class, 'company_user')->withPivot('role')->withTimestamps();
-}
-
-}

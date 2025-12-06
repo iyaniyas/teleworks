@@ -1,26 +1,15 @@
 {{-- resources/views/pricing.blade.php --}}
 @extends('layouts.app')
 
-@section('title','Pricing — Teleworks')
-@section('meta_description','Pilih paket pemasangan job berbayar. Pembayaran diproses melalui Midtrans. Pilih paket dan lanjutkan ke pembayaran.') 
+@section('title','Biaya Pasang Loker — Teleworks')
+@section('meta_description','Biaya Pasang Loker. Pilih paket pemasangan job berbayar. Pembayaran diproses melalui Midtrans. Pilih paket dan lanjutkan ke pembayaran.') 
 
 @section('content')
 <div class="text-center py-5">
-  <h1 class="display-5 fw-bold text-light">Paket Pasang Lowongan</h1>
+  <h1 class="display-5 fw-bold text-light">Biaya Pasang Loker</h1>
   <p class="lead" style="color:rgba(230,238,248,0.85);">
-    Tingkatkan visibilitas lowongan Anda dengan paket berbayar kami. Pembayaran diproses melalui <strong>Midtrans</strong>. Pilih paket yang sesuai kebutuhan perusahaan Anda lalu lanjutkan ke pembayaran.
+    Pasang lowongan berbayar dan tampilkan iklan Anda selama periode tertentu. Pembayaran diproses melalui <strong>Midtrans</strong>. Pilih paket yang sesuai kebutuhan perusahaan Anda lalu lanjutkan ke pembuatan lowongan.
   </p>
-
-  {{-- GANTI: tombol lama diganti dengan block CTA employer --}}
-  <div class="pricing-page my-4">
-    <h2 class="h4 text-light">Pilih Paket</h2>
-    <p style="color:rgba(230,238,248,0.85);">Pilih paket di bawah untuk mem-publish lowongan Anda.</p>
-
-    {{-- CTA: arahkan employer untuk membuat lowongan terlebih dahulu --}}
-    <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary">
-      Buat Lowongan & Pilih Paket
-    </a>
-  </div>
 </div>
 
 <section id="plans" class="py-5">
@@ -42,20 +31,16 @@
 
             <div class="my-4">
               <div class="h1 fw-bold text-light">Rp 100.000</div>
-              <div style="color:rgba(230,238,248,0.7);">/ per posting (30 hari)</div>
+              <div style="color:rgba(230,238,248,0.7);">/ per posting</div>
             </div>
 
             <ul class="list-unstyled mb-4" style="color:rgba(230,238,248,0.9);">
               <li class="mb-2">• Tayang selama 30 hari</li>
-              <li class="mb-2">• Tanpa prioritas</li>
-              <li class="mb-2">• 1 lowongan per pembelian</li>
-              <li class="mb-2">• Dukungan email</li>
             </ul>
 
             <div class="mt-auto">
-              {{-- Tombol lama diganti: arahkan ke pembuatan job employer --}}
               <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
-                Buat Lowongan & Pilih Paket
+                Buat Lowongan &amp; Pilih Paket
               </a>
             </div>
           </div>
@@ -70,27 +55,23 @@
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <h5 class="card-title mb-1 text-light">Standard</h5>
-                <small style="color:rgba(230,238,248,0.7);">Pilihan populer</small>
+                <small style="color:rgba(230,238,248,0.7);">Pilihan seimbang</small>
               </div>
               <span class="badge bg-primary">Best value</span>
             </div>
 
             <div class="my-4">
               <div class="h1 fw-bold text-light">Rp 200.000</div>
-              <div style="color:rgba(230,238,248,0.7);">/ per posting (60 hari)</div>
+              <div style="color:rgba(230,238,248,0.7);">/ per posting</div>
             </div>
 
             <ul class="list-unstyled mb-4" style="color:rgba(230,238,248,0.9);">
               <li class="mb-2">• Tayang selama 60 hari</li>
-              <li class="mb-2">• Prioritas medium</li>
-              <li class="mb-2">• 1 lowongan + boost</li>
-              <li class="mb-2">• Dukungan chat & email</li>
             </ul>
 
             <div class="mt-auto">
-              {{-- Tombol lama diganti --}}
               <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
-                Buat Lowongan & Pilih Paket
+                Buat Lowongan &amp; Pilih Paket
               </a>
             </div>
           </div>
@@ -105,27 +86,23 @@
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <h5 class="card-title mb-1 text-light">Premium</h5>
-                <small style="color:rgba(230,238,248,0.7);">Untuk perusahaan yang ingin maksimal</small>
+                <small style="color:rgba(230,238,248,0.7);">Paket durasi terpanjang</small>
               </div>
               <span class="badge bg-warning text-dark">Top</span>
             </div>
 
             <div class="my-4">
               <div class="h1 fw-bold text-light">Rp 300.000</div>
-              <div style="color:rgba(230,238,248,0.7);">/ per posting (90 hari)</div>
+              <div style="color:rgba(230,238,248,0.7);">/ per posting</div>
             </div>
 
             <ul class="list-unstyled mb-4" style="color:rgba(230,238,248,0.9);">
               <li class="mb-2">• Tayang selama 90 hari</li>
-              <li class="mb-2">• Prioritas tinggi</li>
-              <li class="mb-2">• Highlight di listing</li>
-              <li class="mb-2">• Dukungan prioritas + analytics</li>
             </ul>
 
             <div class="mt-auto">
-              {{-- Tombol lama diganti --}}
               <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
-                Buat Lowongan & Pilih Paket
+                Buat Lowongan &amp; Pilih Paket
               </a>
             </div>
           </div>
@@ -137,7 +114,7 @@
     <div class="row mt-5">
       <div class="col-lg-8 mx-auto text-center">
         <p style="color:rgba(230,238,248,0.75);">
-          Semua harga sudah termasuk biaya layanan. Pembayaran diproses melalui <strong>Midtrans</strong>. Setelah pembayaran sukses, lowongan akan aktif sesuai durasi paket. Anda akan diarahkan kembali ke Teleworks setelah proses pembayaran.
+          Semua harga sudah termasuk biaya layanan. Pembayaran diproses melalui <strong>Midtrans</strong>. Setelah pembayaran sukses, lowongan akan aktif sesuai durasi paket.
         </p>
       </div>
     </div>
@@ -160,7 +137,7 @@
         </h2>
         <div id="collapseFaq1" class="accordion-collapse collapse" aria-labelledby="faq1">
           <div class="accordion-body" style="color:rgba(230,238,248,0.85);">
-            Pembayaran diproses melalui Midtrans. Setelah memilih paket, Anda akan diarahkan ke halaman pembayaran Midtrans (hosted/redirect atau popup). Selain redirect, Midtrans akan mengirimkan notifikasi ke server kami (webhook) untuk mengkonfirmasi status pembayaran.
+            Pembayaran diproses melalui Midtrans. Setelah memilih paket dan membuat lowongan, Anda akan diarahkan ke halaman pembayaran Midtrans. Midtrans juga akan mengirimkan notifikasi ke server kami (webhook) untuk mengkonfirmasi status pembayaran.
           </div>
         </div>
       </div>
@@ -175,7 +152,7 @@
         </h2>
         <div id="collapseFaq2" class="accordion-collapse collapse">
           <div class="accordion-body" style="color:rgba(230,238,248,0.85);">
-            Tidak ada batasan khusus — setiap pembelian paket berlaku untuk satu lowongan. Untuk penawaran korporat, silakan hubungi tim penjualan.
+            Setiap pembelian paket berlaku untuk satu posting lowongan. Untuk kebutuhan korporat atau volume besar, silakan hubungi tim kami untuk penawaran khusus.
           </div>
         </div>
       </div>
@@ -190,7 +167,7 @@
         </h2>
         <div id="collapseFaq3" class="accordion-collapse collapse">
           <div class="accordion-body" style="color:rgba(230,238,248,0.85);">
-            Masuk ke dashboard perusahaan. Anda akan melihat status <strong>is_paid</strong> dan tanggal kadaluarsa <strong>paid_until</strong> untuk setiap lowongan.
+            Masuk ke dashboard perusahaan. Anda dapat melihat status pembayaran dan tanggal kadaluarsa tayang lowongan di daftar lowongan Anda.
           </div>
         </div>
       </div>
