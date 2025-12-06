@@ -58,7 +58,7 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
       <h1 class="h4 mb-0">
-        Lowongan {{ $qDisplay ?: 'kerja' }}{{ $lokasiDisplay ? ' di ' . $lokasiDisplay : '' }}
+        Lowongan {{ $qDisplay ?: 'Kerja' }}{{ $lokasiDisplay ? ' di ' . $lokasiDisplay : '' }}
       </h1>
     </div>
   </div>

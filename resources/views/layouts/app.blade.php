@@ -72,7 +72,7 @@
         {{-- MENU KIRI --}}
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link py-2" href="{{ route('search.index') }}">Semua Lowongan</a>
+            <a class="nav-link py-2" href="{{ route('search.index') }}">Semua Loker</a>
           </li>
           <li class="nav-item">
             <a class="nav-link py-2" href="{{ route('public.searchlogs') }}">Pencarian Terbaru</a>
@@ -161,7 +161,7 @@
           <div class="row">
             <div class="col-6">
               <h2 class="h6 text-light">Menu</h2>
-              <a href="{{ route('search.index') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Semua Lowongan</a>
+              <a href="{{ route('search.index') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Semua Loker</a>
               <a href="{{ route('public.searchlogs') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Pencarian Terbaru</a>
               <a href="{{ route('pricing') }}" class="d-block py-2 small fw-semibold" style="color:#facc15 !important;">Pasang Loker</a>
             </div>

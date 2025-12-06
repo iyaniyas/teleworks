@@ -17,7 +17,7 @@
       Teleworks.id
     </h1>
     <p class="mt-3 max-w-3xl mx-auto text-sm md:text-base tw-muted" style="color:#cfdcec;">
-      Cari kerja jarak jauh, langsung dari rumah.
+      Cari Kerja Jarak Jauh, Langsung dari Rumah.
     </p>
   </div>
 
@@ -177,8 +177,8 @@
 
   {{-- LINK KE SEMUA LOKER (DITAMBAHKAN) --}}
   <div class="text-center mt-6 mb-4">
-    <a href="{{ route('search.index') }}" class="btn btn-outline-light px-4 py-2" role="button" aria-label="Lihat Semua Lowongan">
-      Lihat Semua Lowongan
+    <a href="{{ route('search.index') }}" class="btn btn-outline-light px-4 py-2" role="button" aria-label="Lihat Semua Loker">
+      Lihat Semua Loker
     </a>
   </div>
 

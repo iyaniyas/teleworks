@@ -1,14 +1,14 @@
 {{-- resources/views/pricing.blade.php --}}
 @extends('layouts.app')
 
-@section('title','Biaya Pasang Loker — Teleworks')
+@section('title','Pasang Loker — Teleworks')
 @section('meta_description','Biaya Pasang Loker. Pilih paket pemasangan job berbayar. Pembayaran diproses melalui Midtrans. Pilih paket dan lanjutkan ke pembayaran.') 
 
 @section('content')
 <div class="text-center py-5">
-  <h1 class="display-5 fw-bold text-light">Biaya Pasang Loker</h1>
+  <h1 class="display-5 fw-bold text-light">Pasang Loker</h1>
   <p class="lead" style="color:rgba(230,238,248,0.85);">
-    Pasang lowongan berbayar dan tampilkan iklan Anda selama periode tertentu. Pembayaran diproses melalui <strong>Midtrans</strong>. Pilih paket yang sesuai kebutuhan perusahaan Anda lalu lanjutkan ke pembuatan lowongan.
+    Pasang loker berbayar dan tampilkan iklan Anda selama periode tertentu. Pembayaran diproses melalui <strong>Midtrans</strong>. Pilih paket yang sesuai kebutuhan perusahaan Anda lalu lanjutkan ke pembuatan loker.
   </p>
 </div>
 
@@ -40,7 +40,7 @@
 
             <div class="mt-auto">
               <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
-                Buat Lowongan &amp; Pilih Paket
+                Buat Loker &amp; Pilih Paket
               </a>
             </div>
           </div>
@@ -71,7 +71,7 @@
 
             <div class="mt-auto">
               <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
-                Buat Lowongan &amp; Pilih Paket
+                Buat Loker &amp; Pilih Paket
               </a>
             </div>
           </div>
@@ -102,7 +102,7 @@
 
             <div class="mt-auto">
               <a href="{{ route('employer.jobs.create') }}" class="btn btn-primary w-100">
-                Buat Lowongan &amp; Pilih Paket
+                Buat Loker &amp; Pilih Paket
               </a>
             </div>
           </div>
@@ -114,7 +114,8 @@
     <div class="row mt-5">
       <div class="col-lg-8 mx-auto text-center">
         <p style="color:rgba(230,238,248,0.75);">
-          Semua harga sudah termasuk biaya layanan. Pembayaran diproses melalui <strong>Midtrans</strong>. Setelah pembayaran sukses, lowongan akan aktif sesuai durasi paket.
+          Semua harga sudah termasuk biaya layanan. Pembayaran diproses melalui <strong>Midtrans</strong>. Setelah pembayaran sukses, loker akan aktif sesuai durasi paket.
+
         </p>
       </div>
     </div>
@@ -137,7 +138,7 @@
         </h2>
         <div id="collapseFaq1" class="accordion-collapse collapse" aria-labelledby="faq1">
           <div class="accordion-body" style="color:rgba(230,238,248,0.85);">
-            Pembayaran diproses melalui Midtrans. Setelah memilih paket dan membuat lowongan, Anda akan diarahkan ke halaman pembayaran Midtrans. Midtrans juga akan mengirimkan notifikasi ke server kami (webhook) untuk mengkonfirmasi status pembayaran.
+            Pembayaran diproses melalui Midtrans. Setelah memilih paket dan membuat loker, Anda akan diarahkan ke halaman pembayaran Midtrans. Midtrans juga akan mengirimkan notifikasi ke server kami (webhook) untuk mengkonfirmasi status pembayaran.
           </div>
         </div>
       </div>
@@ -147,12 +148,12 @@
         <h2 class="accordion-header" id="faq2">
           <button class="accordion-button collapsed bg-transparent text-light" type="button"
                   data-bs-toggle="collapse" data-bs-target="#collapseFaq2">
-            Apakah ada batasan untuk jumlah lowongan?
+            Apakah ada batasan untuk jumlah loker?
           </button>
         </h2>
         <div id="collapseFaq2" class="accordion-collapse collapse">
           <div class="accordion-body" style="color:rgba(230,238,248,0.85);">
-            Setiap pembelian paket berlaku untuk satu posting lowongan. Untuk kebutuhan korporat atau volume besar, silakan hubungi tim kami untuk penawaran khusus.
+            Setiap pembelian paket berlaku untuk satu posting loker. Untuk kebutuhan korporat atau volume besar, silakan hubungi tim kami untuk penawaran khusus.
           </div>
         </div>
       </div>
@@ -162,12 +163,12 @@
         <h2 class="accordion-header" id="faq3">
           <button class="accordion-button collapsed bg-transparent text-light" type="button"
                   data-bs-toggle="collapse" data-bs-target="#collapseFaq3">
-            Bagaimana cara melihat status lowongan berbayar saya?
+            Bagaimana cara melihat status loker berbayar saya?
           </button>
         </h2>
         <div id="collapseFaq3" class="accordion-collapse collapse">
           <div class="accordion-body" style="color:rgba(230,238,248,0.85);">
-            Masuk ke dashboard perusahaan. Anda dapat melihat status pembayaran dan tanggal kadaluarsa tayang lowongan di daftar lowongan Anda.
+            Masuk ke dashboard perusahaan. Anda dapat melihat status pembayaran dan tanggal kadaluarsa tayang loker di daftar loker Anda.
           </div>
         </div>
       </div>
