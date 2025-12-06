@@ -112,12 +112,25 @@ class Job extends Model
     }
 
     /**
-     * Scope: aktif = published + belum expired
+     * Scope: aktif = published + belum expired (atau tanpa expires_at)
      */
     public function scopeActive($query)
     {
         return $query->where('status', 'published')
-                     ->where('expires_at', '>', now());
+                     ->where(function ($q) {
+                         $q->whereNull('expires_at')
+                           ->orWhere('expires_at', '>', now());
+                     });
+    }
+
+    /**
+     * Loker yang boleh dilihat publik:
+     * - published
+     * - expired
+     */
+    public function scopePublicVisible($query)
+    {
+        return $query->whereIn('status', ['published', 'expired']);
     }
 
     /**

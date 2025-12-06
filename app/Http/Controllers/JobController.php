@@ -5,21 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\Job;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class JobController extends Controller
 {
     /**
-     * Show a job and always generate JobPosting JSON-LD (remote / telecommute).
+     * Tampilkan detail job + JSON-LD JobPosting.
      *
      * @param  int|string  $id
      * @return \Illuminate\View\View
      */
     public function show($id)
     {
-        $job = Job::with('company')->where('id', $id)->firstOrFail();
+        $job = Job::with('company')
+            ->publicVisible() // published + expired
+            ->where('id', $id)
+            ->firstOrFail();
 
-        // datePosted: prefer date_posted, else posted_at, else today's date
+        // datePosted: prefer date_posted, lalu posted_at, lalu hari ini
         if (!empty($job->date_posted)) {
             $datePosted = Carbon::parse($job->date_posted)->toDateString();
             $datePostedForDisplay = Carbon::parse($job->date_posted);
@@ -31,19 +33,24 @@ class JobController extends Controller
             $datePostedForDisplay = Carbon::now();
         }
 
-        // validThrough: prefer field else datePosted + 45
+        // validThrough: pakai field jika ada, kalau tidak datePosted + 45 hari
         if (!empty($job->valid_through)) {
             $validThrough = Carbon::parse($job->valid_through)->toDateString();
         } else {
             $validThrough = Carbon::parse($datePosted)->addDays(45)->toDateString();
         }
 
-        // employmentType: fallback to Full time
+        // Jika status expired tapi validThrough masih masa depan, paksa ke kemarin
+        if ($job->status === 'expired' && Carbon::parse($validThrough)->isFuture()) {
+            $validThrough = Carbon::yesterday()->toDateString();
+        }
+
+        // employmentType: fallback ke Full time
         $employmentType = $job->employment_type ?? 'Full time';
 
-        //
-        // applicantLocationRequirements -> normalize & map country codes to full names
-        //
+        /*
+         * applicantLocationRequirements: normalisasi & mapping kode negara -> nama
+         */
         $appReqField = $job->applicant_location_requirements ?? null;
         if (is_null($appReqField) || $appReqField === '') {
             $rawAppReq = [];
@@ -54,7 +61,6 @@ class JobController extends Controller
             $rawAppReq = is_array($decoded) ? $decoded : [$appReqField];
         }
 
-        // simple mapping for common ISO country codes -> full name (expand as needed)
         $countryMap = [
             'ID'  => 'Indonesia',
             'IDN' => 'Indonesia',
@@ -67,13 +73,14 @@ class JobController extends Controller
             'AU'  => 'Australia',
             'CA'  => 'Canada',
             'PH'  => 'Philippines',
-            // add more if needed
         ];
 
         $applicantLocationRequirements = [];
         foreach ($rawAppReq as $r) {
-            $rTrim = trim((string)$r);
-            if ($rTrim === '') continue;
+            $rTrim = trim((string) $r);
+            if ($rTrim === '') {
+                continue;
+            }
             $upper = strtoupper($rTrim);
             if ((strlen($upper) >= 2 && strlen($upper) <= 3) && isset($countryMap[$upper])) {
                 $name = $countryMap[$upper];
@@ -85,48 +92,60 @@ class JobController extends Controller
                 }
             }
             $applicantLocationRequirements[] = [
-                "@type" => "Country",
-                "name"  => $name
+                '@type' => 'Country',
+                'name'  => $name,
             ];
         }
 
-        // default fallback to Indonesia if empty (optional)
         if (empty($applicantLocationRequirements)) {
             $applicantLocationRequirements[] = [
-                "@type" => "Country",
-                "name"  => "Indonesia"
+                '@type' => 'Country',
+                'name'  => 'Indonesia',
             ];
         }
 
-        //
-        // baseSalary: build MonetaryAmount + QuantitativeValue according to available data
-        //
+        /*
+         * baseSalary: bangun MonetaryAmount + QuantitativeValue
+         */
         $baseSalary = null;
         $currency = $job->base_salary_currency ?? 'IDR';
-        // normalize unit to accepted values: HOUR|DAY|WEEK|MONTH|YEAR
+
+        // normalisasi unit: HOUR|DAY|WEEK|MONTH|YEAR
         $unitText = strtoupper($job->base_salary_unit ?? 'YEAR');
         $allowedUnits = ['HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR'];
-        if (!in_array($unitText, $allowedUnits)) {
-            if (strpos(strtolower($unitText), 'month') !== false) $unitText = 'MONTH';
-            elseif (strpos(strtolower($unitText), 'day') !== false) $unitText = 'DAY';
-            elseif (strpos(strtolower($unitText), 'week') !== false) $unitText = 'WEEK';
-            elseif (strpos(strtolower($unitText), 'hour') !== false) $unitText = 'HOUR';
-            else $unitText = 'YEAR';
+        if (!in_array($unitText, $allowedUnits, true)) {
+            if (stripos($unitText, 'month') !== false) {
+                $unitText = 'MONTH';
+            } elseif (stripos($unitText, 'day') !== false) {
+                $unitText = 'DAY';
+            } elseif (stripos($unitText, 'week') !== false) {
+                $unitText = 'WEEK';
+            } elseif (stripos($unitText, 'hour') !== false) {
+                $unitText = 'HOUR';
+            } else {
+                $unitText = 'YEAR';
+            }
         }
 
-        // numeric min/max preferred
-        $hasMin = isset($job->base_salary_min) && ($job->base_salary_min !== '' && $job->base_salary_min !== null);
-        $hasMax = isset($job->base_salary_max) && ($job->base_salary_max !== '' && $job->base_salary_max !== null);
+        $hasMin = isset($job->base_salary_min) && $job->base_salary_min !== '' && $job->base_salary_min !== null;
+        $hasMax = isset($job->base_salary_max) && $job->base_salary_max !== '' && $job->base_salary_max !== null;
 
         if ($hasMin || $hasMax) {
-            $qv = ["@type" => "QuantitativeValue", "unitText" => $unitText];
-            if ($hasMin) $qv["minValue"] = (float)$job->base_salary_min;
-            if ($hasMax) $qv["maxValue"] = (float)$job->base_salary_max;
+            $qv = [
+                '@type'    => 'QuantitativeValue',
+                'unitText' => $unitText,
+            ];
+            if ($hasMin) {
+                $qv['minValue'] = (float) $job->base_salary_min;
+            }
+            if ($hasMax) {
+                $qv['maxValue'] = (float) $job->base_salary_max;
+            }
 
             $baseSalary = [
-                "@type"    => "MonetaryAmount",
-                "currency" => $currency,
-                "value"    => $qv
+                '@type'    => 'MonetaryAmount',
+                'currency' => $currency,
+                'value'    => $qv,
             ];
         } elseif (!empty($job->base_salary_string)) {
             $s = $job->base_salary_string;
@@ -139,16 +158,18 @@ class JobController extends Controller
                 }
                 $num = preg_replace('/[,\.\s]/', '', $num);
                 if (is_numeric($num)) {
-                    $val = (float)$num;
-                    if ($isK) $val *= 1000;
+                    $val = (float) $num;
+                    if ($isK) {
+                        $val *= 1000;
+                    }
                     $baseSalary = [
-                        "@type"    => "MonetaryAmount",
-                        "currency" => $currency,
-                        "value"    => [
-                            "@type"    => "QuantitativeValue",
-                            "value"    => $val,
-                            "unitText" => $unitText
-                        ]
+                        '@type'    => 'MonetaryAmount',
+                        'currency' => $currency,
+                        'value'    => [
+                            '@type'    => 'QuantitativeValue',
+                            'value'    => $val,
+                            'unitText' => $unitText,
+                        ],
                     ];
                 }
             }
@@ -179,52 +200,52 @@ class JobController extends Controller
         if ($companyDomainFromModel) {
             $companySameAs = str_starts_with($companyDomainFromModel, 'http')
                 ? $companyDomainFromModel
-                : 'https://' . ltrim($companyDomainFromModel, '/');
+                : 'https://'.ltrim($companyDomainFromModel, '/');
         } elseif (!empty($job->company_domain)) {
             $companySameAs = str_starts_with($job->company_domain, 'http')
                 ? $job->company_domain
-                : 'https://' . ltrim($job->company_domain, '/');
+                : 'https://'.ltrim($job->company_domain, '/');
         }
 
-        //
-        // Build JobPosting JSON-LD (telecommute)
-        //
+        /*
+         * Build JobPosting JSON-LD (telecommute)
+         */
         $jobLd = [
-            "@context"                    => "https://schema.org",
-            "@type"                       => "JobPosting",
-            "title"                       => $job->title,
-            "description"                 => $job->description ? strip_tags($job->description) : null,
-            "datePosted"                  => $datePosted,
-            "validThrough"                => $validThrough,
-            "employmentType"              => $employmentType,
-            "hiringOrganization"          => $companyName ? [
-                "@type"   => "Organization",
-                "name"    => $companyName,
-                "sameAs"  => $companySameAs,
+            '@context'       => 'https://schema.org',
+            '@type'          => 'JobPosting',
+            'title'          => $job->title,
+            'description'    => $job->description ? strip_tags($job->description) : null,
+            'datePosted'     => $datePosted,
+            'validThrough'   => $validThrough,
+            'employmentType' => $employmentType,
+            'hiringOrganization' => $companyName ? [
+                '@type'  => 'Organization',
+                'name'   => $companyName,
+                'sameAs' => $companySameAs,
             ] : null,
-            "jobLocation"                 => [
-                "@type"   => "Place",
-                "address" => [
-                    "@type"           => "PostalAddress",
-                    "streetAddress"   => null,
-                    "addressLocality" => $job->job_location ? $job->job_location : 'Remote',
-                    "addressCountry"  => null
-                ]
+            'jobLocation' => [
+                '@type'   => 'Place',
+                'address' => [
+                    '@type'           => 'PostalAddress',
+                    'streetAddress'   => null,
+                    'addressLocality' => $job->job_location ? $job->job_location : 'Remote',
+                    'addressCountry'  => null,
+                ],
             ],
-            "applicantLocationRequirements" => (count($applicantLocationRequirements) === 1)
+            'applicantLocationRequirements' => (count($applicantLocationRequirements) === 1)
                 ? $applicantLocationRequirements[0]
                 : $applicantLocationRequirements,
-            "baseSalary"                  => $baseSalary,
-            "directApply"                 => (bool)$job->direct_apply,
-            "identifier"                  => [
-                "@type" => "PropertyValue",
-                "name"  => $job->identifier_name ?? 'job_id',
-                "value" => $job->identifier_value ?? (string)$job->id,
+            'baseSalary'  => $baseSalary,
+            'directApply' => (bool) $job->direct_apply,
+            'identifier'  => [
+                '@type' => 'PropertyValue',
+                'name'  => $job->identifier_name ?? 'job_id',
+                'value' => $job->identifier_value ?? (string) $job->id,
             ],
-            "jobLocationType"             => "TELECOMMUTE",
+            'jobLocationType' => 'TELECOMMUTE',
         ];
 
-        // Remove nulls/top-level empties
+        // hapus null / array kosong di level atas
         $jobLd = array_filter($jobLd, function ($v) {
             return $v !== null && $v !== [];
         });
@@ -233,53 +254,53 @@ class JobController extends Controller
             unset($jobLd['baseSalary']);
         }
 
-        $jobPostingJsonLd = json_encode($jobLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $jobPostingJsonLd = json_encode(
+            $jobLd,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
+        );
 
-        //
-        // RELATED JOBS: ambil loker terbaru (kecuali current)
-        //
-        $relatedJobs = Job::where('id', '<>', $job->id)
+        /*
+         * RELATED JOBS: ambil loker aktif terbaru (kecuali current)
+         */
+        $relatedJobs = Job::active()
+            ->where('id', '<>', $job->id)
             ->orderByDesc('date_posted')
             ->orderByDesc('posted_at')
             ->orderByDesc('created_at')
             ->take(6)
             ->get();
 
-        // Prepare timestamp for layout: use date_posted/poste_at (full format) for job detail
+        // timestamp untuk layout
         $timestamp = $datePostedForDisplay
-            ? $datePostedForDisplay->timezone(config('app.timezone', 'Asia/Jakarta'))->format('d M Y, H:i') . ' WIB'
+            ? $datePostedForDisplay
+                ->timezone(config('app.timezone', 'Asia/Jakarta'))
+                ->format('d M Y, H:i').' WIB'
             : null;
 
-        // Return view with job, generated JSON-LD, related jobs, and timestamp
         return view('jobs.show', compact('job', 'jobPostingJsonLd', 'relatedJobs', 'timestamp'));
     }
 
     /**
-     * Show the edit form for a job.
+     * Form edit job (public route /loker/{id}/edit).
      */
     public function edit($id)
     {
-        // ambil job (sama cara show)
         $job = Job::where('id', $id)->firstOrFail();
 
-        // Authorize: memanggil JobPolicy->update()
         $this->authorize('update', $job);
 
-        // return view edit (buat view nanti jika belum ada)
         return view('jobs.edit', compact('job'));
     }
 
     /**
-     * Update the given job.
+     * Update job dari form publik /loker/{id}.
      */
     public function update(Request $request, $id)
     {
         $job = Job::where('id', $id)->firstOrFail();
 
-        // Authorization check
         $this->authorize('update', $job);
 
-        // simple validation — sesuaikan field yang ada di model Job
         $validated = $request->validate([
             'title'           => 'required|string|max:255',
             'description'     => 'nullable|string',
@@ -288,10 +309,11 @@ class JobController extends Controller
             'base_salary_max' => 'nullable|numeric',
         ]);
 
-        // update model
         $job->update($validated);
 
-        return redirect()->route('jobs.show', $job->id)->with('success', 'Job berhasil diperbarui.');
+        return redirect()
+            ->route('jobs.show', $job->id)
+            ->with('success', 'Job berhasil diperbarui.');
     }
 }
 

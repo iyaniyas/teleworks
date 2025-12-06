@@ -123,14 +123,14 @@
                 <label class="form-label text-white">Cara Melamar <span class="text-danger">*</span></label>
                 <select id="apply_via" name="apply_via" class="form-select" required style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
                   <option value="">-- Pilih --</option>
-                  <option value="teleworks" {{ old('apply_via')=='teleworks' ? 'selected':'' }}>Kirim via Teleworks (langsung)</option>
-                  <option value="external" {{ old('apply_via')=='external' ? 'selected':'' }}>Situs/WA/Email (eksternal)</option>
+                  <option value="teleworks" {{ old('apply_via')=='teleworks' ? 'selected':'' }}>Seleksi melalui sistem teleworks.</option>
+                  <option value="external" {{ old('apply_via')=='external' ? 'selected':'' }}>Lamaran dikirim ke Situs/WA/Email Anda.</option>
                 </select>
               </div>
 
               <div class="col-md-6" id="applyContactWrapper" style="{{ old('apply_via')=='external' ? '' : 'display:none;' }}">
-                <label class="form-label text-white">Link / Kontak Melamar (apply_contact)</label>
-                <input type="text" name="apply_contact" id="apply_contact" class="form-control lightfield" value="{{ old('apply_contact') }}" placeholder="https://, mailto:, https://wa.me/62...">
+                <label class="form-label text-white">Link / WA / Email </label>
+                <input type="text" name="apply_contact" id="apply_contact" class="form-control lightfield" value="{{ old('apply_contact') }}" placeholder="contoh:https://wa.me/628221000, mailto:kontak@gmail.com">
                 <div class="small text-muted">Jika memilih "Situs/WA/Email", isi link atau kontak di sini.</div>
               </div>
             </div>

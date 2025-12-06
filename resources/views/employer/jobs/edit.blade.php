@@ -93,13 +93,13 @@
                 @endphp
                 <select id="apply_via" name="apply_via" class="form-select" required style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
                   <option value="">-- Pilih --</option>
-                  <option value="teleworks" {{ $curApplyVia == 'teleworks' ? 'selected' : '' }}>Kirim via Teleworks (langsung)</option>
-                  <option value="external" {{ $curApplyVia == 'external' ? 'selected' : '' }}>Situs/WA/Email (eksternal)</option>
+                  <option value="teleworks" {{ $curApplyVia == 'teleworks' ? 'selected' : '' }}>Seleksi melalui sistem teleworks.</option>
+                  <option value="external" {{ $curApplyVia == 'external' ? 'selected' : '' }}>Kirim lamaran ke Situs/WA/Email Anda.</option>
                 </select>
               </div>
 
               <div class="col-md-6" id="applyContactWrapper" style="{{ $curApplyVia == 'external' ? '' : 'display:none;' }}">
-                <label class="form-label text-white">Link / Kontak Melamar (apply_contact)</label>
+                <label class="form-label text-white">Link / WA / Email</label>
                 @php
                   $curApplyContact = old('apply_contact', $job->apply_url);
                   if ($job->direct_apply) {
@@ -108,7 +108,7 @@
                       }
                   }
                 @endphp
-                <input type="text" name="apply_contact" id="apply_contact" class="form-control" value="{{ $curApplyContact }}" placeholder="https://, mailto:, https://wa.me/62..." style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
+                <input type="text" name="apply_contact" id="apply_contact" class="form-control" value="{{ $curApplyContact }}" placeholder="contoh:https://wa.me/628221000, mailto:kontak@gmail.com" style="background:#181b25;border:1px solid #33374a;color:#e4e7f5;">
                 <div class="small text-muted">Jika memilih "Situs/WA/Email", isi link atau kontak di sini.</div>
               </div>
             </div>
