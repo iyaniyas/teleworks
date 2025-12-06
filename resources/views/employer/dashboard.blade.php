@@ -48,7 +48,7 @@
               </div>
               <div class="text-end">
                 <a href="{{ route('employer.company.edit') }}" class="btn btn-outline-light">Edit Profil</a>
-                <a href="{{ route('purchase.create') }}" class="btn btn-outline-light ms-2">Perpanjang</a>
+                <a href="{{ route('purchase.create') }}" class="btn btn-outline-light ms-2">Pasang loker baru.</a>
               </div>
             </div>
           </div>

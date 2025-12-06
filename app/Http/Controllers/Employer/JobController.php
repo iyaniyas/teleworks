@@ -82,9 +82,10 @@ class JobController extends Controller
     {
         $user = auth()->user();
 
-        // Employer can only see jobs under their own company
         if (!$user->hasRole('admin')) {
-            if (($user->company_id ?? null) !== $job->company_id) {
+            $company = $this->resolveCompany($user);
+
+            if (!$company || $company->id !== $job->company_id) {
                 abort(404);
             }
         }
@@ -95,27 +96,105 @@ class JobController extends Controller
     /**
      * Store new job (no slug). Note: location is required and used as job_location.
      *
-     * Added behavior:
-     * - If company has active package => job status will be published (unless explicitly set)
-     * - If company does NOT have active package => job saved as draft and user redirected to purchase.
+     * Behavior:
+     * - Job SELALU disimpan sebagai draft.
+     * - Semua field penting (lokasi, remote, gaji, dsb) langsung ikut tersimpan.
+     * - Setelah pembayaran sukses, webhook akan mengubah status => published.
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $user = auth()->user();
+        $company = $this->resolveCompany($user);
+
+        if (!$company) {
+            return redirect()->route('companies.create')
+                ->with('error','Silakan buat profil perusahaan terlebih dahulu.');
+        }
+
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            // add other rules according to your form fields
+            'description_html' => 'nullable|string',
+
+            'location' => 'required|string|max:255',
+            'type' => 'nullable|string|max:255',
+            'employment_type' => 'required|string|max:255',
+
+            'applicant_location_requirements' => 'required',
+            'is_remote' => 'required|in:0,1',
+
+            'base_salary_min' => 'required|numeric',
+            'base_salary_max' => 'required|numeric',
+
+            'date_posted' => 'nullable|date',
+            'expires_at' => 'required|date',
+
+            'apply_via' => 'required|in:teleworks,external',
+            'apply_contact' => 'nullable|string|max:1000',
         ]);
 
-        $user = auth()->user();
+        // Normalisasi applicant_location_requirements (sama pola dengan update())
+        $appr = $request->input('applicant_location_requirements');
+        if (is_array($appr)) {
+            $arr = array_values(array_filter(array_map('trim', $appr)));
+        } else {
+            $arr = preg_split('/[\r\n,]+/', (string)$appr);
+            $arr = array_values(array_filter(array_map('trim', $arr)));
+        }
 
-        $job = \App\Models\Job::create(array_merge($data, [
-            'company_id' => $user->company_id ?? null,
+        // Lokasi kerja & tipe lokasi
+        $jobLocation = $validated['location'];
+        $jobLocationType = ((int)$validated['is_remote'] === 1) ? 'Remote' : 'On-site';
+
+        $datePosted = $validated['date_posted'] ?: now()->toDateString();
+        $expiresAt  = $validated['expires_at'];
+
+        $data = [
+            'company_id' => $company->id,
+            'title' => $validated['title'],
+            'description' => $validated['description'],
+            'description_html' => $validated['description_html'] ?? null,
+
+            'location' => $validated['location'],
+            'job_location' => $jobLocation,
+            'job_location_type' => $jobLocationType,
+            'type' => $validated['type'] ?? null,
+            'employment_type' => $validated['employment_type'],
+
+            'applicant_location_requirements' => json_encode($arr),
+            'is_remote' => (int)$validated['is_remote'],
+            'is_wfh' => ((int)$validated['is_remote'] === 1)
+                ? 1
+                : ((stripos($validated['type'] ?? '', 'wfh') !== false) ? 1 : 0),
+
+            'base_salary_min' => $validated['base_salary_min'],
+            'base_salary_max' => $validated['base_salary_max'],
+
+            'date_posted' => $datePosted,
+            'valid_through' => $expiresAt,
+            'expires_at' => $expiresAt,
+
             'status' => 'draft',
-            'is_paid' => 0,
-        ]));
+            'hiring_organization' => $company->name ?? $company->domain ?? null,
+        ];
 
-        return redirect()->route('employer.jobs.show', $job->id)->with('success','Lowongan tersimpan sebagai draft. Silakan pilih paket untuk publish.');
+        $job = Job::create($data);
+
+        // Apply handling (samakan dengan update())
+        $applyVia = $validated['apply_via'] ?? 'external';
+        $applyContact = trim($validated['apply_contact'] ?? '');
+
+        if ($applyVia === 'teleworks') {
+            $job->direct_apply = 1;
+            $job->apply_url = url('/loker/' . $job->id);
+        } else {
+            $job->direct_apply = 0;
+            $job->apply_url = $applyContact ?: $job->apply_url;
+        }
+        $job->save();
+
+        return redirect()->route('employer.jobs.show', $job->id)
+            ->with('success','Lowongan tersimpan sebagai draft. Silakan pilih paket untuk publish.');
     }
 
     /**
@@ -255,11 +334,6 @@ class JobController extends Controller
 
     /**
      * Publish a draft job (action).
-     *
-     * This action ensures:
-     * - requester belongs to same company as job
-     * - company has active package (otherwise redirect to purchase)
-     * - set job->status = 'published' and optionally mark is_paid/paid_until/package_id
      */
     public function publish(Request $request, Job $job)
     {
@@ -270,14 +344,12 @@ class JobController extends Controller
             return back()->with('error', 'Anda tidak berwenang untuk mem-publish lowongan ini.');
         }
 
-        // Ensure company has active package (if middleware not applied)
         if (!$company->hasActivePackage()) {
             return redirect()->route('purchase.create')->with('error', 'Anda perlu paket aktif untuk mem-publish lowongan.');
         }
 
         $job->status = 'published';
 
-        // optionally set is_paid/paid_until if you choose to consume package here
         $payment = $company->activePackage();
         if ($payment) {
             $job->is_paid = 1;

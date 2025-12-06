@@ -33,6 +33,7 @@ class MidtransController extends Controller
             return response('OK', 200);
         }
 
+        // Kalau sudah paid, jangan diutak-atik lagi
         if ($payment->status === 'paid') {
             \Log::info('Midtrans webhook: payment already paid', ['payment_id' => $payment->id]);
             return response('OK', 200);
@@ -41,9 +42,18 @@ class MidtransController extends Controller
         // verify signature (optional but recommended)
         $serverKey = config('midtrans.server_key') ?? env('MIDTRANS_SERVER_KEY');
         if (!empty($serverKey) && !empty($payload['signature_key'])) {
-            $calc = hash('sha512', ($payload['order_id'] ?? '') . ($payload['status_code'] ?? '') . ($payload['gross_amount'] ?? '') . $serverKey);
+            $calc = hash('sha512',
+                ($payload['order_id'] ?? '') .
+                ($payload['status_code'] ?? '') .
+                ($payload['gross_amount'] ?? '') .
+                $serverKey
+            );
+
             if (! hash_equals($calc, $payload['signature_key'])) {
-                \Log::warning('Midtrans webhook: invalid signature', ['calc' => $calc, 'recv' => $payload['signature_key']]);
+                \Log::warning('Midtrans webhook: invalid signature', [
+                    'calc' => $calc,
+                    'recv' => $payload['signature_key']
+                ]);
                 return response('OK', 200);
             }
         }
@@ -51,6 +61,7 @@ class MidtransController extends Controller
         $status = $payload['transaction_status'] ?? null;
         $fraud = $payload['fraud_status'] ?? null;
         $isPaid = false;
+
         if ($status === 'capture' && (empty($fraud) || $fraud === 'accept')) {
             $isPaid = true;
         } elseif (in_array($status, ['settlement','success'])) {
@@ -64,6 +75,7 @@ class MidtransController extends Controller
 
         \DB::beginTransaction();
         try {
+            // Update payment → paid
             $payment->status = 'paid';
             $payment->transaction_id = $payload['transaction_id'] ?? $payment->transaction_id;
 
@@ -71,35 +83,60 @@ class MidtransController extends Controller
             if (Schema::hasColumn('job_payments', 'paid_at')) {
                 $payment->paid_at = now();
             } else {
-                // fallback: pakai started_at atau updated_at jika paid_at tidak ada
                 $payment->started_at = $payment->started_at ?? now();
-                \Log::warning('Midtrans webhook: job_payments.paid_at column missing, used started_at as fallback', ['payment_id' => $payment->id]);
+                \Log::warning(
+                    'Midtrans webhook: job_payments.paid_at column missing, used started_at as fallback',
+                    ['payment_id' => $payment->id]
+                );
             }
 
+            // Hitung expiry berdasar paket
             $expiry = now()->addDays(30);
             if ($payment->package_id) {
                 $pkg = \App\Models\JobPackage::find($payment->package_id);
                 if ($pkg && ($pkg->duration_days ?? null)) {
-                    $expiry = $payment->started_at ? Carbon::parse($payment->started_at)->addDays($pkg->duration_days) : now()->addDays($pkg->duration_days);
+                    $expiry = $payment->started_at
+                        ? Carbon::parse($payment->started_at)->addDays($pkg->duration_days)
+                        : now()->addDays($pkg->duration_days);
                 }
             }
+
             $payment->expires_at = $expiry;
             $payment->meta = $payload;
             $payment->save();
 
+            // Auto-publish job begitu payment paid
             if (! empty($payment->job_id) && Schema::hasTable('jobs')) {
-                DB::table('jobs')->where('id', $payment->job_id)->update([
-                    'is_paid' => 1,
+                $updateData = [
+                    'is_paid'    => 1,
                     'package_id' => $payment->package_id,
                     'expires_at' => $expiry,
                     'paid_until' => $expiry,
+                    'status'     => 'published',
+                    'updated_at' => now(),
+                ];
+
+                DB::table('jobs')
+                    ->where('id', $payment->job_id)
+                    ->update($updateData);
+
+                \Log::info('Midtrans webhook: job auto-published after payment', [
+                    'payment_id' => $payment->id,
+                    'job_id'     => $payment->job_id,
+                    'update'     => $updateData,
                 ]);
             } else {
-                \Log::warning('Midtrans webhook: payment has no job_id or jobs table missing', ['payment_id' => $payment->id]);
+                \Log::warning('Midtrans webhook: payment has no job_id or jobs table missing', [
+                    'payment_id' => $payment->id,
+                    'job_id' => $payment->job_id,
+                ]);
             }
 
             \DB::commit();
-            \Log::info('Midtrans webhook: processed payment', ['payment_id' => $payment->id, 'job_id' => $payment->job_id]);
+            \Log::info('Midtrans webhook: processed payment', [
+                'payment_id' => $payment->id,
+                'job_id' => $payment->job_id
+            ]);
         } catch (\Throwable $e) {
             \DB::rollBack();
             \Log::error('Midtrans webhook: failed to update payment', [
