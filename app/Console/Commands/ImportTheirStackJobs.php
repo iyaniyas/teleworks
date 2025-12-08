@@ -309,10 +309,15 @@ class ImportTheirStackJobs extends Command
                     'identifier_value'                => $sourceId ? (string)$sourceId : null,
                     'job_location_type'               => $jobLocationType,
                     'valid_through'                   => $validThrough,
+                    'expires_at'                      => Carbon::parse($validThrough)->endOfDay(),
                     'source'                          => 'theirstack',
                     'discovered_at'                   => !empty($j['discovered_at']) ? Carbon::parse($j['discovered_at']) : now(),
                     'raw'                             => json_encode($j),
                     'fingerprint'                     => $fp,
+
+                    // tambahan: auto publish + flag import
+                    'status'                          => 'published',
+                    'is_imported'                     => true,
                 ];
 
                 try {

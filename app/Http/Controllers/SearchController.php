@@ -320,8 +320,6 @@ class SearchController extends Controller
      *
      * Additional behavior: if mapped Careerjet external results (after dedupe) < 10,
      * fetch Jooble and top-up external results up to 10 (or until Jooble exhausted).
-     *
-     * (original complex implementation — unchanged)
      */
     protected function performSearch($qRaw, $lokasiRaw, $wfh = false, $perPage = 21, Request $request = null)
     {
@@ -384,19 +382,22 @@ class SearchController extends Controller
                 $companyName = $job->company;
             }
 
+            $isPremium = !empty($job->is_paid) && (int)$job->is_paid === 1;
+
             return (object)[
-                'id'         => $job->id,
-                'title'      => $job->title,
-                'company'    => $companyName,
-                'location'   => $job->location ?? $job->job_location ?? null,
-                'apply_url'  => url('/loker/' . $job->id),
-                'url'        => url('/loker/' . $job->id),
-                'description'=> null,
-                'date_posted'=> $dateParsed,
-                'source'     => 'db',
-                'raw'        => $job,
-                'is_external'=> false,
-                'dedupe_key' => $job->final_url
+                'id'          => $job->id,
+                'title'       => $job->title,
+                'company'     => $companyName,
+                'location'    => $job->location ?? $job->job_location ?? null,
+                'apply_url'   => url('/loker/' . $job->id),
+                'url'         => url('/loker/' . $job->id),
+                'description' => null,
+                'date_posted' => $dateParsed,
+                'source'      => 'db',
+                'raw'         => $job,
+                'is_external' => false,
+                'is_premium'  => $isPremium,
+                'dedupe_key'  => $job->final_url
                     ? (string)$job->final_url
                     : ($job->identifier_value ? (string)$job->identifier_value : null),
             ];
@@ -466,18 +467,19 @@ class SearchController extends Controller
             }
 
             $mappedExternal->push((object)[
-                'id'         => $ext['raw']['id'] ?? null,
-                'title'      => $ext['title'] ?? 'No title',
-                'company'    => $ext['company'] ?? null,
-                'location'   => $ext['location'] ?? null,
-                'apply_url'  => $ext['apply_url'] ?? $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
-                'url'        => $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
-                'description'=> isset($ext['description']) ? strip_tags($ext['description']) : null,
-                'date_posted'=> $dateParsed,
-                'source'     => $ext['source'] ?? 'careerjet',
-                'raw'        => $ext['raw'] ?? null,
-                'is_external'=> true,
-                'dedupe_key' => $dedupeKey,
+                'id'          => $ext['raw']['id'] ?? null,
+                'title'       => $ext['title'] ?? 'No title',
+                'company'     => $ext['company'] ?? null,
+                'location'    => $ext['location'] ?? null,
+                'apply_url'   => $ext['apply_url'] ?? $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
+                'url'         => $ext['url'] ?? ($ext['raw']['apply_url'] ?? $ext['raw']['url'] ?? null),
+                'description' => isset($ext['description']) ? strip_tags($ext['description']) : null,
+                'date_posted' => $dateParsed,
+                'source'      => $ext['source'] ?? 'careerjet',
+                'raw'         => $ext['raw'] ?? null,
+                'is_external' => true,
+                'dedupe_key'  => $dedupeKey,
+                'is_premium'  => false,
             ]);
         }
 
@@ -523,18 +525,19 @@ class SearchController extends Controller
                     }
 
                     $mappedExternal->push((object)[
-                        'id'         => $j['raw']['id'] ?? null,
-                        'title'      => $j['title'] ?? 'No title',
-                        'company'    => $j['company'] ?? null,
-                        'location'   => $j['location'] ?? null,
-                        'apply_url'  => $j['apply_url'] ?? $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
-                        'url'        => $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
-                        'description'=> isset($j['description']) ? strip_tags($j['description']) : null,
-                        'date_posted'=> $dateParsed,
-                        'source'     => $j['source'] ?? 'jooble',
-                        'raw'        => $j['raw'] ?? null,
-                        'is_external'=> true,
-                        'dedupe_key' => $dedupeKey,
+                        'id'          => $j['raw']['id'] ?? null,
+                        'title'       => $j['title'] ?? 'No title',
+                        'company'     => $j['company'] ?? null,
+                        'location'    => $j['location'] ?? null,
+                        'apply_url'   => $j['apply_url'] ?? $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
+                        'url'         => $j['url'] ?? ($j['raw']['link'] ?? $j['raw']['url'] ?? null),
+                        'description' => isset($j['description']) ? strip_tags($j['description']) : null,
+                        'date_posted' => $dateParsed,
+                        'source'      => $j['source'] ?? 'jooble',
+                        'raw'         => $j['raw'] ?? null,
+                        'is_external' => true,
+                        'dedupe_key'  => $dedupeKey,
+                        'is_premium'  => false,
                     ]);
                 }
             } catch (\Throwable $e) {
@@ -542,11 +545,24 @@ class SearchController extends Controller
             }
         }
 
-        // Merge DB items and external items and sort by date_posted desc (nulls last)
+        // Merge DB items and external items
+        // Sort: premium first, then by date_posted desc (nulls last).
         $merged = $dbItems->concat($mappedExternal)
-            ->sortByDesc(function ($it) {
-                return $it->date_posted ? $it->date_posted->getTimestamp() : 0;
-            })->values();
+            ->sort(function ($a, $b) {
+                $ap = !empty($a->is_premium) ? 1 : 0;
+                $bp = !empty($b->is_premium) ? 1 : 0;
+
+                // Premium duluan
+                if ($ap !== $bp) {
+                    return $bp <=> $ap; // 1 di atas 0
+                }
+
+                $at = $a->date_posted ? $a->date_posted->getTimestamp() : 0;
+                $bt = $b->date_posted ? $b->date_posted->getTimestamp() : 0;
+
+                return $bt <=> $at;
+            })
+            ->values();
 
         // Compute combined total — cap to maxPagesCap pages
         $combinedTotalEstimate = $dbTotal + $externalTotalRaw;
@@ -644,18 +660,21 @@ class SearchController extends Controller
                 $companyName = $job->company;
             }
 
+            $isPremium = !empty($job->is_paid) && (int)$job->is_paid === 1;
+
             return (object)[
-                'id'         => $job->id,
-                'title'      => $job->title,
-                'company'    => $companyName,
-                'location'   => $job->location ?? $job->job_location ?? null,
-                'apply_url'  => url('/loker/' . $job->id),
-                'url'        => url('/loker/' . $job->id),
-                'date_posted'=> $dateParsed,
-                'source'     => 'db',
-                'raw'        => $job,
-                'is_external'=> false,
-                'description'=> null,
+                'id'          => $job->id,
+                'title'       => $job->title,
+                'company'     => $companyName,
+                'location'    => $job->location ?? $job->job_location ?? null,
+                'apply_url'   => url('/loker/' . $job->id),
+                'url'         => url('/loker/' . $job->id),
+                'date_posted' => $dateParsed,
+                'source'      => 'db',
+                'raw'         => $job,
+                'is_external' => false,
+                'description' => null,
+                'is_premium'  => $isPremium,
             ];
         });
 
@@ -688,7 +707,7 @@ class SearchController extends Controller
 
         if (!empty($result['items'])) {
             try {
-                // **Cache changed to 12 hours**
+                // Cache 12 hours
                 $cacheStore->put($cacheKey, $result, now()->addHours(12));
             } catch (\Throwable $e) {
                 Log::warning('fetchCareerjetResultsCached: failed caching: ' . $e->getMessage());
@@ -797,7 +816,10 @@ class SearchController extends Controller
         $totalHits = (int)($joobleResult['total'] ?? count($rawItems));
 
         if (empty($rawItems)) {
-            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
+            return new LengthAwarePaginator(collect([]), 0, $perPage, $page, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]);
         }
 
         // Map to objects
@@ -810,18 +832,20 @@ class SearchController extends Controller
                     $dateParsed = null;
                 }
             }
-            return (object)[
-                'title'      => $it['title'] ?? 'No title',
-                'company'    => $it['company'] ?? null,
-                'location'   => $it['location'] ?? null,
-                'apply_url'  => $it['apply_url'] ?? $it['url'] ?? null,
-                'url'        => $it['url'] ?? $it['apply_url'] ?? null,
-                'description'=> $it['description'] ?? null,
-                'date_posted'=> $dateParsed,
-                'source'     => 'jooble',
-                'raw'        => $it['raw'] ?? null,
-                'is_external'=> true,
+            $obj = (object)[
+                'title'       => $it['title'] ?? 'No title',
+                'company'     => $it['company'] ?? null,
+                'location'    => $it['location'] ?? null,
+                'apply_url'   => $it['apply_url'] ?? $it['url'] ?? null,
+                'url'         => $it['url'] ?? $it['apply_url'] ?? null,
+                'description' => $it['description'] ?? null,
+                'date_posted' => $dateParsed,
+                'source'      => 'jooble',
+                'raw'         => $it['raw'] ?? null,
+                'is_external' => true,
+                'is_premium'  => false,
             ];
+            return $obj;
         });
 
         $totalCapped = min($totalHits, $perPage * $maxPages);
@@ -864,17 +888,18 @@ class SearchController extends Controller
                     }
                 }
                 $obj = (object)[
-                    'title'      => $title,
-                    'company'    => $company,
-                    'location'   => $location,
-                    'apply_url'  => $applyUrl,
-                    'url'        => $applyUrl,
-                    'description'=> $it['description'] ?? null,
-                    'date_posted'=> $datePosted,
-                    'source'     => $it['source'] ?? 'careerjet',
-                    'raw'        => $it['raw'] ?? null,
+                    'title'       => $title,
+                    'company'     => $company,
+                    'location'    => $location,
+                    'apply_url'   => $applyUrl,
+                    'url'         => $applyUrl,
+                    'description' => $it['description'] ?? null,
+                    'date_posted' => $datePosted,
+                    'source'      => $it['source'] ?? 'careerjet',
+                    'raw'         => $it['raw'] ?? null,
+                    'is_external' => true,
+                    'is_premium'  => false,
                 ];
-                $obj->is_external = true;
                 return $obj;
             });
 
@@ -944,16 +969,17 @@ class SearchController extends Controller
             }
 
             $obj = (object)[
-                'title'      => $title,
-                'company'    => $company,
-                'location'   => $location,
-                'apply_url'  => $applyUrl,
-                'url'        => $applyUrl,
-                'description'=> $desc,
-                'date_posted'=> $datePosted,
-                'source'     => 'careerjet',
-                'raw'        => $j,
-                'is_external'=> true,
+                'title'       => $title,
+                'company'     => $company,
+                'location'    => $location,
+                'apply_url'   => $applyUrl,
+                'url'         => $applyUrl,
+                'description' => $desc,
+                'date_posted' => $datePosted,
+                'source'      => 'careerjet',
+                'raw'         => $j,
+                'is_external' => true,
+                'is_premium'  => false,
             ];
             $items->push($obj);
             $count++;
@@ -965,7 +991,7 @@ class SearchController extends Controller
 
         $paginator = new LengthAwarePaginator($items, $totalCapped, $perPage, $page, [
             'path' => $request->url(),
-            'query'=> $request->query(),
+            'query' => $request->query(),
         ]);
 
         if ($items->count() > 0) {
@@ -987,7 +1013,7 @@ class SearchController extends Controller
                     'total' => $totalCapped,
                 ];
 
-                // **Cache changed to 12 hours**
+                // Cache 12 hours
                 Cache::store('redis')->put($cacheKey, $cachePayload, now()->addHours(12));
                 Log::debug("Careerjet fallback: cached key {$cacheKey}");
             } catch (\Throwable $e) {
@@ -1023,7 +1049,7 @@ class SearchController extends Controller
 
         if (!empty($result['items'])) {
             try {
-                // **Cache changed to 12 hours**
+                // Cache 12 hours
                 $cache->put($cacheKey, $result, now()->addHours(12));
             } catch (\Throwable $e) {
                 Log::warning('fetchJoobleResultsCached: failed caching: ' . $e->getMessage());

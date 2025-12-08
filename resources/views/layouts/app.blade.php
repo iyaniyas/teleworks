@@ -146,7 +146,8 @@
   <footer class="mt-auto" style="background:#061122;border-top:1px solid rgba(255,255,255,0.04);color:#cbd5e1;">
     <div class="container py-4">
       <div class="row">
-        <div class="col-md-6 mb-3">
+        {{-- BRAND --}}
+        <div class="col-12 col-md-3 mb-3">
           <a href="/" class="text-decoration-none">
             <span class="tw-gradient-logo fs-5 fw-bold" style="background:linear-gradient(90deg,#fff,#c9c9c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
               TELE WORKS
@@ -157,21 +158,123 @@
           </p>
         </div>
 
-        <div class="col-md-6">
-          <div class="row">
-            <div class="col-6">
-              <h2 class="h6 text-light">Menu</h2>
-              <a href="{{ route('search.index') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Semua Loker</a>
-              <a href="{{ route('public.searchlogs') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Pencarian Terbaru</a>
-              <a href="{{ route('pricing') }}" class="d-block py-2 small fw-semibold" style="color:#facc15 !important;">Pasang Loker</a>
-            </div>
+        {{-- NAVIGASI (Menu + Tentang) --}}
+        <div class="col-6 col-md-3">
+          <h2 class="h6 text-light">Navigasi</h2>
+          <a href="{{ route('search.index') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Semua Loker</a>
+          <a href="{{ route('public.searchlogs') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Pencarian Terbaru</a>
+          <a href="{{ route('pricing') }}" class="d-block py-2 small fw-semibold" style="color:#facc15 !important;">Pasang Loker</a>
+          <a href="{{ route('about') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Tentang Teleworks</a>
+          <a href="{{ route('privacy') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Kebijakan Privasi</a>
+        </div>
 
-            <div class="col-6">
-              <h2 class="h6 text-light">Tentang</h2>
-              <a href="{{ route('about') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Tentang Teleworks</a>
-              <a href="{{ route('privacy') }}" class="d-block py-2 small" style="color:#cbd5e1 !important;">Kebijakan Privasi</a>
-            </div>
-          </div>
+        {{-- PALING BANYAK DICARI (UMUM) --}}
+        <div class="col-6 col-md-3">
+          <h2 class="h6 text-light">Paling Banyak Dicari</h2>
+          <ul class="list-unstyled small mb-0">
+            <li>
+              <a href="{{ url('/cari/desain') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Desain
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/writer') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Writer
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/copywriter') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Copywriter
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/data-entry') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Data entry
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/admin-online') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Admin online
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/customer-service') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Customer service
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/social-media') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Social media
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/digital-marketing') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Digital marketing
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/video-editor') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Video editor
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/live-streaming') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Live streaming
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/freelance') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Freelance
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        {{-- PALING DICARI (IT) --}}
+        <div class="col-12 col-md-3 mt-3 mt-md-0">
+          <h2 class="h6 text-light">Paling Dicari (IT)</h2>
+          <ul class="list-unstyled small mb-0">
+            <li>
+              <a href="{{ url('/cari/software-engineer') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Software engineer
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/frontend') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Frontend
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/backend') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Backend
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/fullstack') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Fullstack
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/mobile') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Mobile
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/data-analyst') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Data analyst
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/data-scientist') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                Data scientist
+              </a>
+            </li>
+            <li>
+              <a href="{{ url('/cari/devops-engineer') }}" class="d-block py-1" style="color:#cbd5e1 !important;">
+                DevOps engineer
+              </a>
+            </li>
+          </ul>
         </div>
       </div>
 

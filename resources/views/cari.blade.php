@@ -1,3 +1,4 @@
+{{-- resources/views/cari.blade.php --}}
 @extends('layouts.app')
 
 @php
@@ -53,7 +54,6 @@
   <meta property="og:type" content="website" />
 @endpush
 
-
 @section('content')
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
@@ -62,7 +62,6 @@
       </h1>
     </div>
   </div>
-
 
   <div class="card mb-3 p-3">
     <form method="GET" action="{{ route('search.index') }}" class="row g-2 align-items-center">
@@ -82,13 +81,11 @@
     </form>
   </div>
 
-
   @if(!empty($fallback_note))
     <div class="card mb-3 p-3 bg-dark text-light border-secondary">
       <div class="small-muted mb-2">{{ $fallback_note }}</div>
     </div>
   @endif
-
 
   {{-- HASIL --}}
   @if(isset($jobs) && $jobs->count())
@@ -110,8 +107,8 @@
             $posted = null;
           }
 
-          // PREMIUM FLAG BARU
-          $isPremium = !empty($job->raw) && !empty($job->raw->is_paid) && (int)$job->raw->is_paid === 1;
+          // gunakan flag premium dari controller (is_premium)
+          $isPremium = !empty($job->is_premium);
         @endphp
 
         <div class="col-12 col-md-6 col-lg-4">
@@ -154,7 +151,6 @@
       {{ $jobs->links('pagination::bootstrap-5') }}
     </div>
 
-
     @if(!empty($qRaw) || (!empty($lokasiRaw) && empty($qRaw)))
       <div class="mt-3">
         <div class="small-muted mb-2">
@@ -178,15 +174,12 @@
       </div>
     @endif
 
-
   @else
     <div class="card p-3">
       <p class="mb-0 muted">Tidak ditemukan lowongan. Coba variasikan kata kunci atau hilangkan filter lokasi.</p>
     </div>
   @endif
 @endsection
-
-
 
 @push('styles')
 <style>
@@ -197,7 +190,6 @@
   .result-title:hover { color:#fff; }
 </style>
 @endpush
-
 
 @push('scripts')
 <script>
