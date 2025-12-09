@@ -35,7 +35,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('jobs:expire')
             ->hourly();
 	// JSA — jalan setiap hari jam 01:00 WIB
-    $schedule->command('jsa:import --q="" --location="indonesia" --results=1 --limit=5')
+    $schedule->command('jsa:import --q=freelance --location="indonesia" --results=1 --limit=5')
         ->dailyAt('01:00')
         ->withoutOverlapping();
 

@@ -28,6 +28,9 @@ use App\Http\Controllers\MidtransController;
 // Public report controller
 use App\Http\Controllers\ReportController;
 
+//admin users view
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+
 //reports
 Route::post('/reports', [App\Http\Controllers\ReportController::class, 'store'])->name('reports.store');
 
@@ -138,7 +141,7 @@ Route::middleware(['auth', 'role:company|admin'])->group(function () {
         ->name('employer.applications.status');
 
     Route::get('/employer/applications/{id}/resume', [JobApplicationController::class, 'downloadResume'])
-        ->name('employer.applications.resume');
+	    ->name('employer.applications.resume');
 });
 
 
@@ -210,6 +213,13 @@ Route::middleware(['auth','role:admin'])
     Route::get('reports', [AdminReportController::class,'index'])->name('reports.index');
     Route::get('reports/{report}', [AdminReportController::class,'show'])->name('reports.show');
     Route::post('reports/{report}/resolve', [AdminReportController::class,'resolve'])->name('reports.resolve');
+
+    // Users
+    Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
+    Route::get('users/{user}/edit', [AdminUserController::class, 'edit'])->name('users.edit');
+    Route::put('users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+    Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
+
 });
 
 

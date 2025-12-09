@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Teleworks.id – #1 Cari Kerja dari Rumah')
-@section('meta_description', 'Cari kerja jarak jauh, langsung dari rumah. Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya. Mulai karier fleksibel Anda hari ini!')
+@section('title', 'Teleworks – #1 Cari Kerja dari Rumah')
+@section('meta_description', 'Cari kerja jarak jauh, langsung dari rumah. Tersedia pekerjaan WFH full-time & part-time dari perusahaan terpercaya.')
 
 @php
   // timestamp untuk home: Tampilkan bulan dan tahun (contoh: "Nov 2025")

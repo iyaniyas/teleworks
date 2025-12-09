@@ -67,6 +67,28 @@
   </div>
 </div>
 
+<div class="col-md-3">
+  <a href="{{ route('admin.users.index') }}" class="text-decoration-none">
+    <div class="card text-bg-dark h-100">
+      <div class="card-body">
+        <h5 class="card-title">Users</h5>
+        <p class="card-text fs-3">{{ $totalUsers }}</p>
+        <p class="card-text">
+          <small class="text-muted">
+            Admin: {{ $admins }},
+            Company: {{ $companies }},
+            Seeker: {{ $seekers }}
+          </small>
+        </p>
+      </div>
+      <div class="card-footer bg-transparent border-top-0">
+        <button class="btn btn-sm btn-outline-light">Manage users</button>
+      </div>
+    </div>
+  </a>
+</div>
+
+
 <div class="mb-4">
   <h4>Quick links</h4>
   <div class="d-flex flex-wrap gap-2">
