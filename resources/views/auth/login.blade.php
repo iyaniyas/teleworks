@@ -48,6 +48,7 @@
           <div class="text-center mt-3 muted-light">
             Belum punya akun? <a href="{{ route('register') }}" class="text-accent">Daftar</a>
           </div>
+	  <input type="hidden" name="intended" value="{{ request('intended') }}">
         </form>
       </div>
     </div>
