@@ -61,7 +61,7 @@
       <li>Meminta perbaikan data yang salah.</li>
       <li>Meminta penghapusan data tertentu.</li>
     </ul>
-    <p>Untuk permintaan, hubungi kami di: <a href="mailto:waduklalung@gmail.com">waduklalung@gmail.com</a></p>
+    <p>Untuk permintaan, hubungi kami di:sales@teleworks.id</p>
 
     <h2>9. Penggunaan oleh Anak-Anak</h2>
     <p>Teleworks.id tidak ditujukan untuk anak di bawah usia <strong>16 tahun</strong>. Kami tidak secara sengaja mengumpulkan data pribadi dari anak-anak. Jika Anda yakin ada data anak yang terkumpul tanpa izin, hubungi kami untuk penghapusan.</p>
@@ -72,8 +72,8 @@
     <h2>11. Kontak</h2>
     <p>Jika Anda memiliki pertanyaan terkait kebijakan privasi ini, hubungi:</p>
     <ul>
-      <li>Email: <a href="mailto:waduklalung@gmail.com">waduklalung@gmail.com</a></li>
-      <li>Website: <a href="https://teleworks.id" target="_blank">https://teleworks.id</a></li>
+      <li>Email: sales@teleworks.id </li>
+      <li>Website: <a href="https://www.teleworks.id" target="_blank">https://www.teleworks.id</a></li>
     </ul>
 
   </div>

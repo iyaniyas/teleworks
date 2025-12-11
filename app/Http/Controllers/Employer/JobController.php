@@ -9,18 +9,15 @@ use App\Models\Company;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
+use App\Services\AiClient;
 
 class JobController extends Controller
 {
     public function __construct()
     {
-        // keep original middleware (auth + role guard)
         $this->middleware(['auth','role:company|admin']);
     }
 
-    /**
-     * Resolve company yang berkaitan dengan user (pivot / owner / legacy)
-     */
     protected function resolveCompany($user)
     {
         try {
@@ -45,9 +42,6 @@ class JobController extends Controller
         return null;
     }
 
-    /**
-     * List jobs for employer
-     */
     public function index(Request $request)
     {
         $company = $this->resolveCompany($request->user());
@@ -62,9 +56,6 @@ class JobController extends Controller
         return view('employer.jobs.index', compact('jobs','company'));
     }
 
-    /**
-     * Show create form
-     */
     public function create(Request $request)
     {
         $company = $this->resolveCompany($request->user());
@@ -75,9 +66,6 @@ class JobController extends Controller
         return view('employer.jobs.create', compact('company'));
     }
 
-    /**
-     * Show single job in employer area
-     */
     public function show(Job $job)
     {
         $user = auth()->user();
@@ -94,14 +82,12 @@ class JobController extends Controller
     }
 
     /**
-     * Store new job (no slug). Note: location is required and used as job_location.
-     *
-     * Behavior:
-     * - Job SELALU disimpan sebagai draft.
-     * - Semua field penting (lokasi, remote, gaji, dsb) langsung ikut tersimpan.
-     * - Setelah pembayaran sukses, webhook akan mengubah status => published.
+     * Store new job.
+     * Catatan khusus:
+     * - Field "description" sekarang TIDAK wajib.
+     * - Kalau description kosong, AI akan membuat contoh deskripsi terstruktur.
      */
-    public function store(Request $request)
+    public function store(Request $request, AiClient $ai)
     {
         $user = auth()->user();
         $company = $this->resolveCompany($user);
@@ -113,7 +99,9 @@ class JobController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'description' => 'required|string',
+
+            // deskripsi boleh kosong, AI akan mengisi jika kosong
+            'description' => 'nullable|string',
             'description_html' => 'nullable|string',
 
             'location' => 'required|string|max:255',
@@ -133,7 +121,7 @@ class JobController extends Controller
             'apply_contact' => 'nullable|string|max:1000',
         ]);
 
-        // Normalisasi applicant_location_requirements (sama pola dengan update())
+        // Normalisasi applicant_location_requirements
         $appr = $request->input('applicant_location_requirements');
         if (is_array($appr)) {
             $arr = array_values(array_filter(array_map('trim', $appr)));
@@ -142,17 +130,47 @@ class JobController extends Controller
             $arr = array_values(array_filter(array_map('trim', $arr)));
         }
 
-        // Lokasi kerja & tipe lokasi
-        $jobLocation = $validated['location'];
+        $jobLocation     = $validated['location'];
         $jobLocationType = ((int)$validated['is_remote'] === 1) ? 'Remote' : 'On-site';
+        $datePosted      = $validated['date_posted'] ?: now()->toDateString();
+        $expiresAt       = $validated['expires_at'];
 
-        $datePosted = $validated['date_posted'] ?: now()->toDateString();
-        $expiresAt  = $validated['expires_at'];
+        // Siapkan instance Job sementara untuk dikirim ke AI
+        $tmpJob = new Job([
+            'title'               => $validated['title'],
+            'location'            => $validated['location'],
+            'employment_type'     => $validated['employment_type'],
+            'is_remote'           => (int)$validated['is_remote'],
+            'base_salary_min'     => $validated['base_salary_min'],
+            'base_salary_max'     => $validated['base_salary_max'],
+            'description'         => $validated['description'] ?? null,
+        ]);
+
+        $finalDescription = $validated['description'] ?? null;
+
+        // Kalau description kosong → minta AI buat contoh
+        if (empty(trim((string)$finalDescription))) {
+            try {
+                $generated = $ai->generateJobDescription($tmpJob, $company);
+                if ($generated) {
+                    $finalDescription = $generated;
+                }
+            } catch (\Throwable $e) {
+                Log::error('JobController@store AI description error', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Kalau masih kosong juga (AI gagal), pakai fallback minimal
+        if (empty(trim((string)$finalDescription))) {
+            $finalDescription = "Tanggung Jawab:\n- Mengemban peran {$validated['title']}\n\nPersyaratan:\n- Detail akan dibahas saat wawancara.\n\nKeuntungan:\n- Lingkungan kerja yang mendukung.\n\nMengapa Bergabung Dengan Kami?\n- Kesempatan berkembang dalam pekerjaan remote.\n\nTentang Kami:\n- {$company->name}";
+        }
 
         $data = [
             'company_id' => $company->id,
             'title' => $validated['title'],
-            'description' => $validated['description'],
+            'description' => $finalDescription,
             'description_html' => $validated['description_html'] ?? null,
 
             'location' => $validated['location'],
@@ -176,11 +194,14 @@ class JobController extends Controller
 
             'status' => 'draft',
             'hiring_organization' => $company->name ?? $company->domain ?? null,
+
+            // AI deskripsi pertama kali: anggap sudah 1x pakai
+            'ai_generate_count' => !empty($validated['description']) ? 0 : 1,
         ];
 
         $job = Job::create($data);
 
-        // Apply handling (samakan dengan update())
+        // Apply handling
         $applyVia = $validated['apply_via'] ?? 'external';
         $applyContact = trim($validated['apply_contact'] ?? '');
 
@@ -194,12 +215,9 @@ class JobController extends Controller
         $job->save();
 
         return redirect()->route('employer.jobs.show', $job->id)
-            ->with('success','Lowongan tersimpan sebagai draft. Silakan pilih paket untuk publish.');
+            ->with('success','Lowongan tersimpan sebagai draft. Deskripsi telah ' . (empty($validated['description']) ? 'dibuat oleh AI.' : 'diperbarui.'));
     }
 
-    /**
-     * Show edit form
-     */
     public function edit(Request $request, $id)
     {
         $job = Job::findOrFail($id);
@@ -212,7 +230,6 @@ class JobController extends Controller
             return back()->with('error','Lowongan ini berasal dari importer dan tidak dapat diedit melalui dashboard employer.');
         }
 
-        // decode applicant_location_requirements for form
         $appr = $job->applicant_location_requirements;
         if (is_string($appr)) {
             $apprArr = json_decode($appr, true);
@@ -229,9 +246,6 @@ class JobController extends Controller
         return view('employer.jobs.edit', compact('job','apprArr'));
     }
 
-    /**
-     * Update job
-     */
     public function update(Request $request, $id)
     {
         $job = Job::findOrFail($id);
@@ -246,9 +260,9 @@ class JobController extends Controller
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'description' => 'required|string',
+            'description' => 'nullable|string',
             'description_html' => 'nullable|string',
-            'location' => 'required|string|max:255', // required now
+            'location' => 'required|string|max:255',
             'type' => 'nullable|string|max:255',
             'employment_type' => 'required|string|max:255',
             'applicant_location_requirements' => 'required',
@@ -262,7 +276,6 @@ class JobController extends Controller
             'status' => ['nullable', Rule::in(['draft','published','expired','archived'])],
         ]);
 
-        // normalize applicant_location_requirements
         $appr = $request->input('applicant_location_requirements');
         if (is_array($appr)) {
             $arr = array_values(array_filter(array_map('trim', $appr)));
@@ -271,13 +284,12 @@ class JobController extends Controller
             $arr = array_values(array_filter(array_map('trim', $arr)));
         }
 
-        // infer job_location and type
-        $jobLocation = $validated['location'];
+        $jobLocation     = $validated['location'];
         $jobLocationType = ((int)$validated['is_remote'] === 1) ? 'Remote' : 'On-site';
 
         $data = [
             'title' => $validated['title'],
-            'description' => $validated['description'],
+            'description' => $validated['description'] ?? $job->description,
             'description_html' => $validated['description_html'] ?? $job->description_html,
             'location' => $validated['location'],
             'job_location' => $jobLocation,
@@ -298,7 +310,6 @@ class JobController extends Controller
 
         $job->update($data);
 
-        // apply handling
         $applyVia = $validated['apply_via'] ?? 'external';
         $applyContact = trim($validated['apply_contact'] ?? '');
         if ($applyVia === 'teleworks') {
@@ -313,9 +324,6 @@ class JobController extends Controller
         return redirect()->route('employer.jobs.index')->with('success', 'Lowongan diperbarui.');
     }
 
-    /**
-     * Destroy job
-     */
     public function destroy(Request $request, $id)
     {
         $job = Job::findOrFail($id);
@@ -332,9 +340,6 @@ class JobController extends Controller
         return back()->with('success','Lowongan dihapus.');
     }
 
-    /**
-     * Publish a draft job (action).
-     */
     public function publish(Request $request, Job $job)
     {
         $user = $request->user();

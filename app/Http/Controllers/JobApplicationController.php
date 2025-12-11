@@ -8,13 +8,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Services\AiClient;
 
 class JobApplicationController extends Controller
 {
     /**
      * Apply to a job (store application)
      */
-    public function apply(Request $request, $jobId)
+    public function apply(Request $request, $jobId, AiClient $ai)
     {
         $request->validate([
             'resume' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // 5MB
@@ -38,7 +39,6 @@ class JobApplicationController extends Controller
 
         $resumePath = null;
         if ($request->hasFile('resume')) {
-            // store path uses configured disk (default 'public')
             $disk = config('filesystems.resumes_disk', 'public');
             $resumePath = $request->file('resume')->store("resumes/{$job->id}/{$user->id}", $disk);
         }
@@ -49,10 +49,18 @@ class JobApplicationController extends Controller
             'resume_path' => $resumePath,
             'cover_letter' => $request->input('cover_letter'),
             'status' => 'applied',
-            'applied_at' => now(),
+            // kolom applied_at belum ada di tabel, jadi tidak dipakai di sini
         ]);
 
-        // TODO: send notification/email to employer
+        // AI scoring: nilai pelamar berdasarkan job & CV/Profile
+        try {
+            $ai->scoreApplication($application);
+        } catch (\Throwable $e) {
+            Log::error('JobApplicationController@apply AI scoring error', [
+                'error' => $e->getMessage(),
+                'application_id' => $application->id,
+            ]);
+        }
 
         return back()->with('success', 'Lamaran terkirim. Terima kasih!');
     }
@@ -67,11 +75,14 @@ class JobApplicationController extends Controller
 
         // admin sees all
         if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
-            $apps = JobApplication::with(['job','user'])->latest()->paginate(20);
+            $apps = JobApplication::with(['job','user'])
+                ->orderByDesc('ai_score')     // urut berdasarkan skor AI dulu
+                ->orderByDesc('created_at')   // lalu terbaru
+                ->paginate(20);
+
             return view('employer.applications.index', compact('apps'));
         }
 
-        // build company ids array from relations (many-to-many) or owner field
         $companyIds = [];
 
         if (isset($user->company_id) && $user->company_id) {
@@ -95,15 +106,13 @@ class JobApplicationController extends Controller
             ->whereHas('job', function($q) use ($companyIds) {
                 $q->whereIn('company_id', $companyIds);
             })
-            ->latest()
+            ->orderByDesc('ai_score')     // prioritas: skor AI tertinggi
+            ->orderByDesc('created_at')   // kalau sama, yang terbaru dulu
             ->paginate(20);
 
         return view('employer.applications.index', compact('apps'));
     }
 
-    /**
-     * Employer change status of an application
-     */
     public function changeStatus(Request $request, $id)
     {
         $request->validate([
@@ -115,19 +124,12 @@ class JobApplicationController extends Controller
         $user = Auth::user();
         if (! $user) abort(403);
 
-        // -------------------------
-        // Authorization (robust):
-        // 1) admin => allowed
-        // 2) check user->companies() (preferred)
-        // 3) fallback to company->users()
-        // -------------------------
         $allowed = false;
 
         if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
             $allowed = true;
         }
 
-        // Prefer checking many-to-many from user's side
         if (! $allowed && method_exists($user, 'companies')) {
             try {
                 if ($user->companies()->where('companies.id', $application->job->company_id)->exists()) {
@@ -138,7 +140,6 @@ class JobApplicationController extends Controller
             }
         }
 
-        // Fallback to company->users() if still not allowed
         if (! $allowed) {
             try {
                 $company = $application->job->company;
@@ -162,8 +163,6 @@ class JobApplicationController extends Controller
         $application->status = $request->input('status');
         $application->save();
 
-        // Optional: dispatch notification to applicant
-
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json(['success' => true, 'status' => $application->status]);
         }
@@ -171,30 +170,24 @@ class JobApplicationController extends Controller
         return back()->with('success', 'Status aplikasi diperbarui.');
     }
 
-    /**
-     * Download resume (only employer/admin/applicant)
-     */
     public function downloadResume(Request $request, $id)
     {
         $app = JobApplication::with('job.company','user')->findOrFail($id);
         $user = Auth::user();
         if (! $user) abort(403);
 
-        // Authorization: applicant can access their own resume
         if ($user->id === $app->user_id) {
             if (! $app->resume_path) abort(404);
             $disk = config('filesystems.resumes_disk', 'public');
             return Storage::disk($disk)->download($app->resume_path);
         }
 
-        // Admin allowed
         if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
             if (! $app->resume_path) abort(404);
             $disk = config('filesystems.resumes_disk', 'public');
             return Storage::disk($disk)->download($app->resume_path);
         }
 
-        // Company/employer: robust checks (prefer user->companies())
         $allowed = false;
 
         if (method_exists($user, 'companies')) {
@@ -207,7 +200,6 @@ class JobApplicationController extends Controller
             }
         }
 
-        // fallback to company->users()
         if (! $allowed) {
             try {
                 $company = $app->job->company;
@@ -243,7 +235,6 @@ class JobApplicationController extends Controller
             abort(404, 'File resume tidak ditemukan di storage.');
         }
 
-        // prepare readable filename
         $orig = basename($app->resume_path);
         $ext = pathinfo($orig, PATHINFO_EXTENSION);
         $cleanUser = isset($app->user->name) ? preg_replace('/\s+/', '_', strtolower($app->user->name)) : 'applicant';

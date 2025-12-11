@@ -13,7 +13,7 @@ class Job extends Model
 
     /**
      * Jika Anda lebih suka whitelist, gunakan fillable.
-     * Saya gabungkan semua field dari dua versi dan menambahkan kolom AI.
+     * Saya gabungkan semua field dari dua versi.
      */
     protected $guarded = ['id'];
 
@@ -50,21 +50,6 @@ class Job extends Model
 
         // html description (sanitized)
         'description_html',
-
-        // AI fields
-        'ai_generate_count',
-        'ai_applicants_summary',
-        'ai_applicants_summary_count',
-        'ai_applicants_summary_last_at',
-    ];
-
-    /**
-     * Default attribute values untuk kolom AI supaya kebaca saat model baru dibuat.
-     */
-    protected $attributes = [
-        'ai_generate_count' => 0,
-        'ai_applicants_summary' => null,
-        'ai_applicants_summary_count' => 0,
     ];
 
     protected $casts = [
@@ -81,7 +66,6 @@ class Job extends Model
         'posted_at' => 'datetime',
         'date_posted' => 'date',
         'valid_through' => 'date',
-        'ai_applicants_summary_last_at' => 'datetime',
 
         // complex types
         'applicant_location_requirements' => 'array',
@@ -92,10 +76,6 @@ class Job extends Model
         'base_salary_max' => 'decimal:2',
         'salary_min' => 'decimal:2',
         'salary_max' => 'decimal:2',
-
-        // AI numeric fields
-        'ai_generate_count' => 'integer',
-        'ai_applicants_summary_count' => 'integer',
     ];
 
     /**
@@ -128,10 +108,6 @@ class Job extends Model
                 $job->is_remote = true;
                 $job->remote = true;
             }
-
-            // pastikan kolom AI ada default (jika belum diatur)
-            $job->ai_generate_count = $job->ai_generate_count ?? 0;
-            $job->ai_applicants_summary_count = $job->ai_applicants_summary_count ?? 0;
         });
     }
 
@@ -172,31 +148,6 @@ class Job extends Model
     public function applications()
     {
         return $this->hasMany(\App\Models\Application::class);
-    }
-
-    /**
-     * Helper: increment ai_generate_count (mis. saat AI menghasilkan ringkasan/deskripsi)
-     */
-    public function incrementAiGenerateCount(int $by = 1)
-    {
-        $this->increment('ai_generate_count', $by);
-        return $this;
-    }
-
-    /**
-     * Helper: update ringkasan pelamar yang dihasilkan AI
-     *
-     * @param string|null $summary
-     * @param int $applicantCount
-     * @return $this
-     */
-    public function updateAiApplicantsSummary(?string $summary, int $applicantCount = 0)
-    {
-        $this->ai_applicants_summary = $summary;
-        $this->ai_applicants_summary_count = $applicantCount;
-        $this->ai_applicants_summary_last_at = now();
-        $this->save();
-        return $this;
     }
 }
 

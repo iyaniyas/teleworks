@@ -279,7 +279,7 @@
       </div>
 
       <div class="mt-3 small" style="color:#9fb0c8;">
-        Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥ iyaniyas.
+        VPS oleh: s.id/0NRys Hasil pencarian dapat disimpan untuk analitik. Dibuat dengan ♥ iyaniyas.
       </div>
     </div>
 

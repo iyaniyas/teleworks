@@ -10,7 +10,21 @@ class JobApplication extends Model
     use HasFactory;
 
     protected $fillable = [
-        'job_id','user_id','resume_path','cover_letter','status'
+        'job_id',
+        'user_id',
+        'resume_path',
+        'cover_letter',
+        'status',
+
+        // AI fields
+        'ai_score',
+        'ai_notes',
+        'ai_scored_at',
+    ];
+
+    protected $casts = [
+        'ai_scored_at' => 'datetime',
+        'ai_score' => 'decimal:2',
     ];
 
     public function job()
@@ -22,12 +36,5 @@ class JobApplication extends Model
     {
         return $this->belongsTo(\App\Models\User::class);
     }
-
-    // app/Models/User.php
-public function applications()
-{
-    return $this->hasMany(\App\Models\JobApplication::class);
-}
-
 }
 

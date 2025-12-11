@@ -29,7 +29,7 @@
     </ol>
 
     <h2>Tim & Kontak</h2>
-    <p>Teleworks dijalankan oleh tim kecil yang berfokus pada pengembangan web dan komunitas kerja remote. Untuk pertanyaan, kerja sama, atau memasang lowongan, hubungi kami melalui email: <a href="mailto:waduklalung@gmail.com">waduklalung@gmail.com</a>.</p>
+    <p>Teleworks dijalankan oleh tim kecil yang berfokus pada pengembangan web dan komunitas kerja remote. Untuk pertanyaan, kerja sama, atau memasang lowongan, hubungi kami melalui email.</p>
 
     <h2>Nilai kami</h2>
     <p>Kualitas, kredibilitas, dan keberlanjutan. Kami berusaha menjaga kualitas listing, memverifikasi sumber bila memungkinkan, dan terus memperbaiki proses moderasi untuk menjaga pengalaman pengguna.</p>
