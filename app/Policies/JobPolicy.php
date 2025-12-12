@@ -20,41 +20,72 @@ class JobPolicy
 
     /**
      * Determine whether the user can create jobs for a company.
-     * Allowed if the user belongs to at least one company (pivot) OR is owner of a company.
+     * Allowed if the user belongs to at least one company (pivot)
+     * OR is owner of a company.
      */
     public function create(User $user)
     {
         // user belongs to any company via pivot
-        if ($user->companies()->exists()) return true;
+        if ($user->companies()->exists()) {
+            return true;
+        }
 
         // or user is owner of any company
-        if (\App\Models\Company::where('owner_id', $user->id)->exists()) return true;
+        if (Company::where('owner_id', $user->id)->exists()) {
+            return true;
+        }
 
         return false;
     }
 
     /**
      * Determine whether the user can update/manage a job.
-     * Allowed if job->company is owned by user (owner_id) OR user belongs to company's pivot.
+     * Allowed if job->company is owned by user (owner_id)
+     * OR user belongs to company's pivot.
      */
     public function update(User $user, Job $job)
     {
         // Admin handled in before()
 
         // If job has no company -> deny
-        if (!$job->company_id) return false;
+        if (!$job->company_id) {
+            return false;
+        }
 
         // Owner check
         $company = Company::find($job->company_id);
-        if ($company && $company->owner_id && $company->owner_id == $user->id) {
+        if ($company && $company->owner_id == $user->id) {
             return true;
         }
 
         // Pivot membership check
-        $belongs = $user->companies()->where('companies.id', $job->company_id)->exists();
-        if ($belongs) return true;
+        return $user->companies()
+            ->where('companies.id', $job->company_id)
+            ->exists();
+    }
 
-        return false;
+    /**
+     * Determine whether the user can view applicants of a job.
+     * Read-only access.
+     */
+    public function viewApplicants(User $user, Job $job)
+    {
+        // Admin handled in before()
+
+        if (!$job->company_id) {
+            return false;
+        }
+
+        // Owner company
+        $company = Company::find($job->company_id);
+        if ($company && $company->owner_id == $user->id) {
+            return true;
+        }
+
+        // Member company via pivot
+        return $user->companies()
+            ->where('companies.id', $job->company_id)
+            ->exists();
     }
 
     /**
@@ -66,6 +97,7 @@ class JobPolicy
         if ($job->is_imported) {
             return false;
         }
+
         return $this->update($user, $job);
     }
 }

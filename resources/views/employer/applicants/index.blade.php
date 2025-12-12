@@ -3,9 +3,19 @@
 @section('content')
 <div class="container py-3">
 
-  {{-- HEADER (mobile-first) --}}
-  <div class="mb-3">
-    <h1 class="h5 h4-md text-light mb-0">Daftar Pelamar</h1>
+  {{-- HEADER (mobile-first stack) --}}
+  <div class="row g-2 align-items-center mb-3">
+    <div class="col-12 col-md">
+      <h1 class="h5 h4-md text-light mb-0">
+        Pelamar — {{ $job->title }}
+      </h1>
+    </div>
+    <div class="col-12 col-md-auto">
+      <a href="/employer/jobs/{{ $job->id }}/applicants/ai-summary"
+         class="btn btn-outline-primary btn-sm w-100 w-md-auto">
+        Ringkasan AI Seluruh Pelamar
+      </a>
+    </div>
   </div>
 
   @if(session('success'))
@@ -37,19 +47,7 @@
         <div class="card bg-dark text-light border-secondary mb-3">
           <div class="card-body">
 
-            {{-- Job info --}}
-            <div class="mb-1">
-              <a href="{{ route('jobs.show', $app->job->id) }}"
-                 class="fw-semibold text-light text-decoration-none">
-                {{ $app->job->title }}
-              </a>
-              <div class="small text-muted">
-                {{ $app->job->company ?? '' }}
-              </div>
-            </div>
-
-            {{-- Applicant + score --}}
-            <div class="d-flex justify-content-between align-items-start mt-2">
+            <div class="d-flex justify-content-between align-items-start">
               <div>
                 <div class="fw-semibold">{{ $app->user->name }}</div>
                 <div class="small">{{ $app->user->email }}</div>
@@ -60,12 +58,10 @@
               </span>
             </div>
 
-            {{-- AI summary --}}
             <div class="mt-2 small bg-secondary bg-opacity-25 p-2 rounded">
               {{ $summary }}
             </div>
 
-            {{-- Meta --}}
             <div class="mt-2 small text-muted">
               Status: {{ ucfirst($app->status) }} ·
               {{ $app->created_at->format('d M Y') }}
@@ -77,14 +73,13 @@
     </div>
 
     {{-- ================= --}}
-    {{-- DESKTOP: TABLE   --}}
+    {{-- DESKTOP: ENHANCE --}}
     {{-- ================= --}}
     <div class="table-responsive d-none d-md-block">
       <table class="table table-dark table-hover align-middle">
         <thead>
           <tr>
             <th>#</th>
-            <th>Job</th>
             <th>Pelamar</th>
             <th>Resume</th>
             <th>AI</th>
@@ -93,7 +88,6 @@
             <th>Aksi</th>
           </tr>
         </thead>
-
         <tbody>
         @foreach($apps as $app)
           @php
@@ -113,16 +107,6 @@
 
           <tr>
             <td>{{ $app->id }}</td>
-
-            <td>
-              <a href="{{ route('jobs.show', $app->job->id) }}"
-                 class="text-light fw-semibold text-decoration-none">
-                {{ $app->job->title }}
-              </a>
-              <div class="small text-muted">
-                {{ $app->job->company ?? '' }}
-              </div>
-            </td>
 
             <td>
               <div class="fw-bold">{{ $app->user->name }}</div>
@@ -169,7 +153,7 @@
           </tr>
 
           <tr>
-            <td colspan="8" class="bg-secondary bg-opacity-25">
+            <td colspan="7" class="bg-secondary bg-opacity-25">
               <span class="badge {{ $badge }}">
                 {{ !is_null($score) ? number_format($score,1) : $label }}
               </span>

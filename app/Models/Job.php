@@ -171,7 +171,7 @@ class Job extends Model
      */
     public function applications()
     {
-        return $this->hasMany(\App\Models\Application::class);
+        return $this->hasMany(\App\Models\JobApplication::class);
     }
 
     /**
@@ -198,5 +198,42 @@ class Job extends Model
         $this->save();
         return $this;
     }
+
+    public function applicationsWithAi()
+	{
+    return $this->applications()
+        ->whereNotNull('ai_score')
+        ->with('user')
+        ->orderByDesc('ai_score');
+	}	
+
+    public function buildApplicantsAiSummary(): array
+	{
+    $apps = $this->applicationsWithAi()->get();
+
+    if ($apps->isEmpty()) {
+        return [
+            'total' => 0,
+            'avg_score' => null,
+            'top3' => [],
+            'summary_text' => 'Belum ada pelamar yang dinilai AI.',
+        ];
+    }
+
+    $avg = round($apps->avg('ai_score'), 2);
+    $top3 = $apps->take(3);
+
+    $summaryText = "Total {$apps->count()} pelamar dinilai AI. "
+        . "Rata-rata skor {$avg}. "
+        . "Kandidat teratas memiliki skor {$top3->first()->ai_score}.";
+
+    return [
+        'total' => $apps->count(),
+        'avg_score' => $avg,
+        'top3' => $top3,
+        'summary_text' => $summaryText,
+    ];
+	}
+
 }
 

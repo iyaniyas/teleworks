@@ -66,6 +66,11 @@ Route::group([
     Route::get('/dashboard', [App\Http\Controllers\Employer\DashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::get(
+        'jobs/{job}/applicants/ai-summary',
+        [App\Http\Controllers\Employer\ApplicantController::class, 'aiSummary']
+    )->name('jobs.applicants.ai-summary');
+
     // Jobs
     Route::resource('jobs', App\Http\Controllers\Employer\JobController::class);
 
@@ -320,6 +325,17 @@ Route::post('/logout', function () {
 Route::middleware(['auth', 'throttle:10,1'])
     ->post('/reports', [ReportController::class, 'store'])
     ->name('reports.store');
+
+/*
+|--------------------------------------------------------------------------
+| Summary reports
+|--------------------------------------------------------------------------
+*/
+
+//Route::get(
+//    'jobs/{job}/applicants/ai-summary',
+//    [\App\Http\Controllers\Employer\ApplicantController::class, 'aiSummary']
+//)->name('jobs.applicants.ai-summary');
 
 
 /*
